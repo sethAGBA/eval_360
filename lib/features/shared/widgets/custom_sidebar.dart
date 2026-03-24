@@ -79,6 +79,7 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/projects'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.account_tree_rounded,
@@ -87,8 +88,10 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/logical-framework'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  */
 
-                  // Suivi & Évaluation
+                   // Suivi & Évaluation
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.show_chart_rounded,
@@ -105,6 +108,24 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/activities'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  */
+                   _buildMenuItem(
+                    context,
+                    icon: Icons.checklist_rounded,
+                    label: 'Gestion des Tâches',
+                    path: '/tasks',
+                    isActive: currentPath.startsWith('/tasks'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.groups_rounded,
+                    label: 'Gestion des Agents',
+                    path: '/agents',
+                    isActive: currentPath.startsWith('/agents'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.map_rounded,
@@ -121,16 +142,18 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/evaluations'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  */
 
-                  // Gestion Financière
+                   // Gestion Financière
                   _buildMenuItem(
                     context,
-                    icon: Icons.attach_money_rounded,
-                    label: 'Budget',
+                    icon: Icons.account_balance_wallet,
+                    label: 'Suivi Budgétaire',
                     path: '/budget',
                     isActive: currentPath.startsWith('/budget'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.receipt_long_rounded,
@@ -147,8 +170,10 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/fund-requests'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  */
 
-                  // Risques & Problèmes
+                   // Risques & Problèmes
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.warning_rounded,
@@ -165,26 +190,84 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/issues'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+                  */
 
                   // Rapports & Documentation
                   _buildMenuItem(
                     context,
                     icon: Icons.description_rounded,
-                    label: 'Rapports',
-                    path: '/reports',
-                    isActive: currentPath.startsWith('/reports'),
+                    label: 'Rapports Hebdo',
+                    path: '/reports/weekly',
+                    isActive: currentPath.startsWith('/reports/weekly'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                   _buildMenuItem(
+                    context,
+                    icon: Icons.calendar_month_rounded,
+                    label: 'Rapports Mensuels',
+                    path: '/reports/monthly',
+                    isActive: currentPath.startsWith('/reports/monthly'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                   _buildMenuItem(
+                    context,
+                    icon: Icons.inventory_2_rounded,
+                    label: 'GED (Gestion Doc)',
+                    path: '/ged',
+                    isActive: currentPath.startsWith('/ged'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
                   _buildMenuItem(
                     context,
-                    icon: Icons.library_books_rounded,
-                    label: 'Bibliothèque',
-                    path: '/library',
-                    isActive: currentPath.startsWith('/library'),
+                    icon: Icons.history_edu_rounded,
+                    label: 'Saisie de TdR',
+                    path: '/processus/tdr',
+                    isActive: currentPath.startsWith('/processus/tdr'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.commute_rounded,
+                    label: 'Ordre de Mission',
+                    path: '/processus/ordre-mission',
+                    isActive: currentPath.startsWith('/processus/ordre-mission'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.school_rounded,
+                    label: 'Rapport de Stage',
+                    path: '/processus/rapport-stage',
+                    isActive: currentPath.startsWith('/processus/rapport-stage'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.map_outlined,
+                    label: 'Suivi des PDC',
+                    path: '/communes',
+                    isActive: currentPath.startsWith('/communes'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.analytics_rounded,
+                    label: 'Reporting & Stats',
+                    path: '/reporting',
+                    isActive: currentPath.startsWith('/reporting'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.handshake_outlined,
+                    label: 'Partenaires PTF',
+                    path: '/partenaires',
+                    isActive: currentPath.startsWith('/partenaires'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
 
-                  // Parties Prenantes
+                   // Parties Prenantes
+                  /*
                   _buildMenuItem(
                     context,
                     icon: Icons.people_rounded,
@@ -246,6 +329,7 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     path: '/analytics',
                     isActive: currentPath.startsWith('/analytics'),
                   ),
+                  */
 
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -258,7 +342,8 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     ),
                   ),
 
-                  // Administration
+                   // Administration
+                  // Paramètres d'administration
                   _buildMenuItem(
                     context,
                     icon: Icons.settings_rounded,

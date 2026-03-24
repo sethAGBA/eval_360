@@ -44,7 +44,7 @@
 | **Base de données** | **SQLite via drift** — Mode offline complet |
 | **State management**| **Riverpod** — Clean Architecture + Repository Pattern |
 | **Navigation** | GoRouter — Déclarative, multi-plateforme, gestion des rôles |
-| **UI Design** | **Material 3** — Palette institutionnelle (vert Cameroun), dark mode |
+| **UI Design** | **Material 3** — Palette institutionnelle (vert Togo), dark mode |
 | **Graphiques** | fl_chart — Courbes de réalisation, histogrammes budgétaires |
 | **Export PDF** | printing + pdf — Rapports institutionnels, canevas, PTBA |
 | **Export Excel** | excel (xlsx) — PTBA, tableaux de bord, exports budgétaires |

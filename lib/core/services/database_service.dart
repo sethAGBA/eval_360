@@ -13,6 +13,18 @@ import '../models/activite.dart';
 import '../models/budget_ligne.dart';
 import '../models/depense.dart';
 import '../models/donnee_collecte.dart';
+import '../models/rapport_hebdo.dart';
+import '../models/document.dart';
+import '../models/tdr.dart';
+import '../models/ordre_mission.dart';
+import '../models/rapport_stage.dart';
+import '../models/commune.dart';
+import '../models/partenaire.dart';
+import '../models/ligne_rapport.dart';
+import '../models/rapport_mensuel.dart';
+import '../models/synthese_axe.dart';
+import '../models/tache.dart';
+import '../database/migrations/v5_monthly_reports_schema.dart';
 
 /// Service centralisé pour toutes les opérations de base de données
 /// Fournit des méthodes métier spécifiques pour chaque module
@@ -1138,6 +1150,761 @@ class DatabaseService {
       return {};
     }
   }
+
+  /// Récupérer les statistiques budgétaires globales
+  Future<Map<String, double>> getGlobalBudgetStats() async {
+    try {
+      final db = await _db.database;
+      
+      // Budget Total (Somme des budgets révisés de toutes les lignes)
+      final budgetTotalResult = await db.rawQuery(
+        'SELECT SUM(budget_revise) as total FROM ${DatabaseTables.budgetLignes}'
+      );
+      final double budgetTotal = (budgetTotalResult.first['total'] as num? ?? 0.0).toDouble();
+
+      // Dépenses Totales (Somme des dépenses non rejetées)
+      final depensesTotalResult = await db.rawQuery(
+        "SELECT SUM(montant) as total FROM ${DatabaseTables.depensesDecaissements} WHERE statut_validation != 'rejete'"
+      );
+      final double depensesTotal = (depensesTotalResult.first['total'] as num? ?? 0.0).toDouble();
+
+      return {
+        'budgetTotal': budgetTotal,
+        'depensesTotal': depensesTotal,
+        'solde': budgetTotal - depensesTotal,
+      };
+    } catch (e) {
+      debugPrint('❌ Error fetching global budget stats: $e');
+      return {'budgetTotal': 0.0, 'depensesTotal': 0.0, 'solde': 0.0};
+    }
+  }
+
+  /// Mettre à jour le statut d'une dépense
+  Future<void> updateDepenseStatus(int depenseId, StatutValidationDepense status) async {
+    try {
+      final db = await _db.database;
+      await db.update(
+        DatabaseTables.depensesDecaissements,
+        {'statut_validation': status.name},
+        where: 'id = ?',
+        whereArgs: [depenseId],
+      );
+    } catch (e) {
+      debugPrint('❌ Error updating expense status: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer toutes les dépenses (tous projets confondus)
+  Future<List<Depense>> getAllDepenses() async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.depensesDecaissements,
+        orderBy: 'date_operation DESC',
+      );
+      return maps.map((map) => Depense.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching all expenses: $e');
+      return [];
+    }
+  }
+
+  // ============================================================================
+  // DIGITALISATION & GED (Phase 3)
+  // ============================================================================
+
+  /// Récupérer les documents (filtrage optionnel par projet)
+  Future<List<Document>> getDocuments({int? projetId, TypeDocument? type}) async {
+    try {
+      final db = await _db.database;
+      String where = '';
+      List<dynamic> whereArgs = [];
+
+      if (projetId != null) {
+        where = 'projet_id = ?';
+        whereArgs.add(projetId);
+      }
+
+      if (type != null) {
+        if (where.isNotEmpty) where += ' AND ';
+        where += 'type_document = ?';
+        whereArgs.add(type.name);
+      }
+
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.documents,
+        where: where.isNotEmpty ? where : null,
+        whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+        orderBy: 'date_document DESC',
+      );
+      return maps.map((map) => Document.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching documents: $e');
+      return [];
+    }
+  }
+
+  /// Créer un document générique
+  Future<int> createDocument(Document doc) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(DatabaseTables.documents, doc.toMap());
+    } catch (e) {
+      debugPrint('❌ Error creating document: $e');
+      rethrow;
+    }
+  }
+
+  /// Créer un TdR rattaché à un document
+  Future<int> createTdR(TdR tdr) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(DatabaseTables.termesDeReference, tdr.toMap());
+    } catch (e) {
+      debugPrint('❌ Error creating TdR: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer le TdR rattaché à un document
+  Future<TdR?> getTdRByDocumentId(int docId) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.termesDeReference,
+        where: 'document_id = ?',
+        whereArgs: [docId],
+      );
+      if (maps.isEmpty) return null;
+      return TdR.fromMap(maps.first);
+    } catch (e) {
+      debugPrint('❌ Error fetching TdR: $e');
+      return null;
+    }
+  }
+
+  /// Créer un Ordre de Mission
+  Future<int> createOrdreMission(OrdreMission ord) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(DatabaseTables.ordresMission, ord.toMap());
+    } catch (e) {
+      debugPrint('❌ Error creating OrdreMission: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer l'Ordre de Mission rattaché à un document
+  Future<OrdreMission?> getOrdreMissionByDocumentId(int docId) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.ordresMission,
+        where: 'document_id = ?',
+        whereArgs: [docId],
+      );
+      if (maps.isEmpty) return null;
+      return OrdreMission.fromMap(maps.first);
+    } catch (e) {
+      debugPrint('❌ Error fetching OrdreMission: $e');
+      return null;
+    }
+  }
+
+  /// Créer un Rapport de Stage
+  Future<int> createRapportStage(RapportStage rapp) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(DatabaseTables.rapportsStage, rapp.toMap());
+    } catch (e) {
+      debugPrint('❌ Error creating RapportStage: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer le Rapport de Stage rattaché à un document
+  Future<RapportStage?> getRapportStageByDocumentId(int docId) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.rapportsStage,
+        where: 'document_id = ?',
+        whereArgs: [docId],
+      );
+      if (maps.isEmpty) return null;
+      return RapportStage.fromMap(maps.first);
+    } catch (e) {
+      debugPrint('❌ Error fetching RapportStage: $e');
+      return null;
+    }
+  }
+
+  // ============================================================================
+  // PARTENAIRES PTF (Module 10)
+  // ============================================================================
+
+  /// Récupérer tous les partenaires
+  Future<List<Partenaire>> getPartenaires({bool? actifSeulement}) async {
+    try {
+      final db = await _db.database;
+      final maps = await db.query(
+        DatabaseTables.partenaniresPtf,
+        where: actifSeulement == true ? 'actif = 1' : null,
+        orderBy: 'nom ASC',
+      );
+      return maps.map((m) => Partenaire.fromMap(m)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching partenaires: $e');
+      return [];
+    }
+  }
+
+  /// Créer un partenaire
+  Future<int> createPartenaire(Partenaire p) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(DatabaseTables.partenaniresPtf, p.toMap());
+    } catch (e) {
+      debugPrint('❌ Error creating partenaire: $e');
+      rethrow;
+    }
+  }
+
+  /// Mettre à jour un partenaire
+  Future<int> updatePartenaire(Partenaire p) async {
+    try {
+      final db = await _db.database;
+      return await db.update(
+        DatabaseTables.partenaniresPtf,
+        p.toMap(),
+        where: 'id = ?',
+        whereArgs: [p.id],
+      );
+    } catch (e) {
+      debugPrint('❌ Error updating partenaire: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // SUIVI DES COMMUNES (Module 09)
+  // ============================================================================
+
+  /// Récupérer toutes les communes
+  Future<List<Commune>> getCommunes() async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.communesPdc,
+        orderBy: 'region ASC, nom ASC',
+      );
+      return maps.map((map) => Commune.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching communes: $e');
+      return [];
+    }
+  }
+
+  /// Mettre à jour le taux d'avancement d'un PDC
+  Future<int> updateCommunePdc(int id, double taux) async {
+    try {
+      final db = await _db.database;
+      return await db.update(
+        DatabaseTables.communesPdc,
+        {
+          'taux_avancement_pdc': taux,
+          'date_maj': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      debugPrint('❌ Error updating commune PDC: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // RAPPORTS HEBDOMADAIRES (Module 04)
+  // ============================================================================
+
+  /// Récupérer les rapports hebdomadaires avec filtres
+  Future<List<RapportHebdo>> getWeeklyReports({
+    int? agentId,
+    StatutValidationRapport? statut,
+    int? annee,
+  }) async {
+    try {
+      final db = await _db.database;
+      String where = '1=1';
+      final List<dynamic> whereArgs = [];
+
+      if (agentId != null) {
+        where += ' AND ${RapportsHebdoColumns.agentId} = ?';
+        whereArgs.add(agentId);
+      }
+      if (statut != null) {
+        where += ' AND ${RapportsHebdoColumns.statutValidation} = ?';
+        whereArgs.add(statut.name);
+      }
+      if (annee != null) {
+        where += ' AND ${RapportsHebdoColumns.annee} = ?';
+        whereArgs.add(annee);
+      }
+
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.rapportsHebdo,
+        where: where,
+        whereArgs: whereArgs,
+        orderBy: '${RapportsHebdoColumns.annee} DESC, ${RapportsHebdoColumns.semaineNumero} DESC',
+      );
+      return maps.map((map) => RapportHebdo.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching weekly reports: $e');
+      return [];
+    }
+  }
+
+  /// Récupérer un rapport par son ID
+  Future<RapportHebdo?> getWeeklyReportById(int id) async {
+    try {
+      final result = await _db.queryById(DatabaseTables.rapportsHebdo, id);
+      return result != null ? RapportHebdo.fromMap(result) : null;
+    } catch (e) {
+      debugPrint('❌ Error fetching weekly report by id: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer les lignes d'un rapport
+  Future<List<LigneRapport>> getLignesByRapportId(int rapportId) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.lignesRapport,
+        where: '${LignesRapportColumns.rapportId} = ?',
+        whereArgs: [rapportId],
+      );
+      return maps.map((map) => LigneRapport.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching report lines: $e');
+      return [];
+    }
+  }
+
+  /// Créer un nouveau rapport avec ses lignes (Transaction)
+  Future<int> createWeeklyReport(
+    RapportHebdo rapport,
+    List<LigneRapport> lignes,
+  ) async {
+    try {
+      final db = await _db.database;
+      return await db.transaction((txn) async {
+        final rapportId = await txn.insert(
+          DatabaseTables.rapportsHebdo,
+          rapport.toMap(),
+        );
+
+        for (final ligne in lignes) {
+          await txn.insert(
+            DatabaseTables.lignesRapport,
+            ligne.copyWith(rapportId: rapportId).toMap(),
+          );
+        }
+
+        return rapportId;
+      });
+    } catch (e) {
+      debugPrint('❌ Error creating weekly report: $e');
+      rethrow;
+    }
+  }
+
+  /// Mettre à jour un rapport et ses lignes
+  Future<void> updateWeeklyReport(
+    RapportHebdo rapport,
+    List<LigneRapport> lignes,
+  ) async {
+    try {
+      final db = await _db.database;
+      await db.transaction((txn) async {
+        // 1. Mettre à jour l'entête
+        await txn.update(
+          DatabaseTables.rapportsHebdo,
+          rapport.toMap(),
+          where: 'id = ?',
+          whereArgs: [rapport.id],
+        );
+
+        // 2. Supprimer les anciennes lignes
+        await txn.delete(
+          DatabaseTables.lignesRapport,
+          where: '${LignesRapportColumns.rapportId} = ?',
+          whereArgs: [rapport.id],
+        );
+
+        // 3. Insérer les nouvelles lignes
+        for (final ligne in lignes) {
+          await txn.insert(
+            DatabaseTables.lignesRapport,
+            ligne.copyWith(rapportId: rapport.id).toMap(),
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('❌ Error updating weekly report: $e');
+      rethrow;
+    }
+  }
+
+  /// Valider ou rejeter un rapport
+  Future<void> validateWeeklyReport({
+    required int rapportId,
+    required int validatorId,
+    required StatutValidationRapport statut,
+    String? commentaire,
+  }) async {
+    try {
+      final now = DateTime.now().toIso8601String();
+      await _db.execute(
+        '''
+        UPDATE ${DatabaseTables.rapportsHebdo}
+        SET 
+          ${RapportsHebdoColumns.statutValidation} = ?,
+          ${RapportsHebdoColumns.commentaireSuperviseur} = ?,
+          ${RapportsHebdoColumns.valideParId} = ?,
+          ${RapportsHebdoColumns.dateValidation} = ?,
+          ${RapportsHebdoColumns.updatedAt} = ?
+        WHERE id = ?
+        ''',
+        [statut.name, commentaire, validatorId, now, now, rapportId],
+      );
+    } catch (e) {
+      debugPrint('❌ Error validating weekly report: $e');
+      rethrow;
+    }
+  }
+
+  /// Supprimer un rapport (Cascade delete géré par la DB)
+  Future<void> deleteWeeklyReport(int id) async {
+    try {
+      await _db.delete(DatabaseTables.rapportsHebdo, id);
+    } catch (e) {
+      debugPrint('❌ Error deleting weekly report: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // RAPPORTS MENSUELS (Module 05)
+  // ============================================================================
+
+  /// Récupérer les rapports mensuels d'un agent
+  Future<List<RapportMensuel>> getMonthlyReports({int? agentId, int? annee}) async {
+    try {
+      String whereClause = '';
+      List<dynamic> whereArgs = [];
+
+      if (agentId != null) {
+        whereClause += '${RapportsMensuelsColumns.agentId} = ?';
+        whereArgs.add(agentId);
+      }
+
+      if (annee != null) {
+        if (whereClause.isNotEmpty) whereClause += ' AND ';
+        whereClause += '${RapportsMensuelsColumns.annee} = ?';
+        whereArgs.add(annee);
+      }
+
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.rapportsMensuels,
+        where: whereClause.isEmpty ? null : whereClause,
+        whereArgs: whereArgs.isEmpty ? null : whereArgs,
+        orderBy: '${RapportsMensuelsColumns.annee} DESC, ${RapportsMensuelsColumns.mois} DESC',
+      );
+
+      return List.generate(maps.length, (i) => RapportMensuel.fromMap(maps[i]));
+    } catch (e) {
+      debugPrint('❌ Error fetching monthly reports: $e');
+      return [];
+    }
+  }
+
+  /// Récupérer un rapport mensuel par ID
+  Future<RapportMensuel?> getMonthlyReportById(int id) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.rapportsMensuels,
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (maps.isEmpty) return null;
+      return RapportMensuel.fromMap(maps.first);
+    } catch (e) {
+      debugPrint('❌ Error fetching monthly report by id: $e');
+      return null;
+    }
+  }
+
+  /// Récupérer les synthèses par axe d'un rapport mensuel
+  Future<List<SyntheseAxe>> getSynthesesByRapportId(int rapportId) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.syntheseAxesMensuels,
+        where: '${SyntheseAxesMensuelsColumns.rapportMensuelId} = ?',
+        whereArgs: [rapportId],
+      );
+      return List.generate(maps.length, (i) => SyntheseAxe.fromMap(maps[i]));
+    } catch (e) {
+      debugPrint('❌ Error fetching synthese axes: $e');
+      return [];
+    }
+  }
+
+  /// Consolider un rapport mensuel à partir des rapports hebdomadaires
+  Future<int> consolidateMonthlyReport(int agentId, int mois, int annee) async {
+    final db = await _db.database;
+    return await db.transaction((txn) async {
+      // 1. Trouver les dates de début et fin du mois
+      final dateDebutMois = DateTime(annee, mois, 1);
+      final dateFinMois = DateTime(annee, mois + 1, 0);
+
+      // 2. Récupérer les rapports hebdomadaires validés du mois
+      final List<Map<String, dynamic>> hebdoMaps = await txn.query(
+        DatabaseTables.rapportsHebdo,
+        where: '''
+          agent_id = ? AND 
+          statut_validation = ? AND 
+          ((date_debut >= ? AND date_debut <= ?) OR (date_fin >= ? AND date_fin <= ?))
+        ''',
+        whereArgs: [
+          agentId,
+          StatutValidationRapport.valide.name,
+          dateDebutMois.toIso8601String(),
+          dateFinMois.toIso8601String(),
+          dateDebutMois.toIso8601String(),
+          dateFinMois.toIso8601String(),
+        ],
+      );
+
+      if (hebdoMaps.isEmpty) {
+        throw Exception('Aucun rapport hebdomadaire validé trouvé pour ce mois.');
+      }
+
+      final List<int> hebdoIds = hebdoMaps.map((m) => m['id'] as int).toList();
+
+      // 3. Récupérer toutes les lignes de rapport
+      final List<Map<String, dynamic>> ligneMaps = await txn.query(
+        DatabaseTables.lignesRapport,
+        where: 'rapport_id IN (${hebdoIds.join(",")})',
+      );
+
+      // 4. Synthèse par AXE (via activities)
+      // Pour cet exemple, on simplifie: on groupe par projet ou par output du cadre logique
+      
+      for (final l in ligneMaps) {
+        // Logique de regroupement... 
+        // Pour la démo, on utilise l'activité liée
+        final actId = l[LignesRapportColumns.activiteId] as int?;
+        if (actId != null) {
+          // Trouver l'axe parent (simplifié: on prend le projet pour l'instant ou on simule l'axe)
+          // Dans une prod réelle, on ferait un JOIN avec activites et cadre_logique
+        }
+      }
+
+      // 5. Créer l'entête du rapport mensuel
+      final rapportId = await txn.insert(
+        DatabaseTables.rapportsMensuels,
+        RapportMensuel(
+          agentId: agentId,
+          mois: mois,
+          annee: annee,
+          tauxRealisationGlobal: 75.0, // Calculé dynamiquement normalement
+          statutValidation: StatutValidationRapport.brouillon,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ).toMap(),
+      );
+
+      // 6. Créer les synthèses par axe (Exemple statique pour l'instant)
+      await txn.insert(DatabaseTables.syntheseAxesMensuels, SyntheseAxe(
+        rapportMensuelId: rapportId,
+        libelleAxe: 'Infrastructures et Équipements',
+        tauxRealisation: 80.0,
+        nombreActivitesPrevues: 10,
+        nombreActivitesRealisees: 8,
+      ).toMap());
+
+      await txn.insert(DatabaseTables.syntheseAxesMensuels, SyntheseAxe(
+        rapportMensuelId: rapportId,
+        libelleAxe: 'Renforcement des Capacités',
+        tauxRealisation: 60.0,
+        nombreActivitesPrevues: 5,
+        nombreActivitesRealisees: 3,
+      ).toMap());
+
+      return rapportId;
+    });
+  }
+
+  // ============================================================================
+  // TACHES (Module 06)
+  // ============================================================================
+
+  /// Récupérer les tâches avec filtres optionnels
+  Future<List<Tache>> getTasks({int? agentId, TacheStatut? statut}) async {
+    try {
+      String whereClause = '';
+      List<dynamic> whereArgs = [];
+
+      if (agentId != null) {
+        whereClause = '${TachesColumns.agentId} = ?';
+        whereArgs.add(agentId);
+      }
+
+      if (statut != null) {
+        if (whereClause.isNotEmpty) whereClause += ' AND ';
+        whereClause += '${TachesColumns.statut} = ?';
+        whereArgs.add(statut.value);
+      }
+
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.taches,
+        where: whereClause.isEmpty ? null : whereClause,
+        whereArgs: whereArgs.isEmpty ? null : whereArgs,
+        orderBy: '${TachesColumns.priorite} DESC, ${TachesColumns.dateEcheance} ASC',
+      );
+
+      return maps.map((map) => Tache.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('❌ Error fetching tasks: $e');
+      rethrow;
+    }
+  }
+
+  /// Récupérer une tâche par ID
+  Future<Tache?> getTaskById(int id) async {
+    try {
+      final db = await _db.database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        DatabaseTables.taches,
+        where: '${TachesColumns.id} = ?',
+        whereArgs: [id],
+      );
+
+      if (maps.isNotEmpty) {
+        return Tache.fromMap(maps.first);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error fetching task by ID: $e');
+      rethrow;
+    }
+  }
+
+  /// Créer une tâche
+  Future<int> createTask(Tache tache) async {
+    try {
+      final db = await _db.database;
+      return await db.insert(
+        DatabaseTables.taches,
+        tache.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('❌ Error creating task: $e');
+      rethrow;
+    }
+  }
+
+  /// Mettre à jour une tâche
+  Future<int> updateTask(Tache tache) async {
+    try {
+      final db = await _db.database;
+      return await db.update(
+        DatabaseTables.taches,
+        tache.toMap(),
+        where: '${TachesColumns.id} = ?',
+        whereArgs: [tache.id],
+      );
+    } catch (e) {
+      debugPrint('❌ Error updating task: $e');
+      rethrow;
+    }
+  }
+
+  /// Supprimer une tâche
+  Future<int> deleteTask(int id) async {
+    try {
+      return await _db.delete(DatabaseTables.taches, id);
+    } catch (e) {
+      debugPrint('❌ Error deleting task: $e');
+      rethrow;
+    }
+  }
+
+  // --- Gestion des Agents (Module 07) ---
+
+  /// Récupérer la liste des agents (utilisateurs)
+  Future<List<Utilisateur>> getAgents() async {
+    final List<Map<String, dynamic>> maps = await _db.queryAll(DatabaseTables.utilisateurs);
+    return maps.map((map) => Utilisateur.fromMap(map)).toList();
+  }
+
+  /// Récupérer les statistiques de charge de travail d'un agent
+  Future<AgentWorkload> getAgentStats(int agentId) async {
+    // Nombre total de tâches
+    final totalTasksRaw = await _db.rawQuery(
+      'SELECT COUNT(*) as count FROM ${DatabaseTables.taches} WHERE ${TachesColumns.agentId} = ?',
+      [agentId],
+    );
+    final totalTasks = totalTasksRaw.first['count'] as int? ?? 0;
+
+    // Tâches par statut
+    final statsByStatus = await _db.rawQuery(
+      'SELECT ${TachesColumns.statut}, COUNT(*) as count FROM ${DatabaseTables.taches} '
+      'WHERE ${TachesColumns.agentId} = ? GROUP BY ${TachesColumns.statut}',
+      [agentId],
+    );
+
+    // Calculer le taux d'avancement moyen
+    final avgProgressResults = await _db.rawQuery(
+      'SELECT AVG(${TachesColumns.pourcentageAvancement}) as avg FROM ${DatabaseTables.taches} '
+      'WHERE ${TachesColumns.agentId} = ?',
+      [agentId],
+    );
+    
+    final double avgProgress = (avgProgressResults.first['avg'] as num?)?.toDouble() ?? 0.0;
+
+    int aFaire = 0;
+    int enCours = 0;
+    int termine = 0;
+    int suspendu = 0;
+
+    for (var row in statsByStatus) {
+      final statut = row[TachesColumns.statut] as String;
+      final count = row['count'] as int;
+      if (statut == TacheStatut.aFaire.name) aFaire = count;
+      else if (statut == TacheStatut.enCours.name) enCours = count;
+      else if (statut == TacheStatut.termine.name) termine = count;
+      else if (statut == TacheStatut.suspendu.name) suspendu = count;
+    }
+
+    return AgentWorkload(
+      agentId: agentId,
+      totalTasks: totalTasks,
+      aFaire: aFaire,
+      enCours: enCours,
+      termine: termine,
+      suspendu: suspendu,
+      averageProgress: avgProgress,
+    );
+  }
 }
 
 // ============================================================================
@@ -1225,5 +1992,42 @@ class ActiviteStats {
   double get tauxExecutionBudget {
     if (budgetTotal == 0) return 0.0;
     return (budgetRealise / budgetTotal * 100);
+  }
+}
+
+/// Charge de travail d'un agent (Module 07)
+class AgentWorkload {
+  final int agentId;
+  final int totalTasks;
+  final int aFaire;
+  final int enCours;
+  final int termine;
+  final int suspendu;
+  final double averageProgress;
+
+  const AgentWorkload({
+    required this.agentId,
+    required this.totalTasks,
+    required this.aFaire,
+    required this.enCours,
+    required this.termine,
+    required this.suspendu,
+    required this.averageProgress,
+  });
+
+  /// Calcul du score de charge (0-100)
+  /// Basé sur le nombre de tâches actives (aFaire=1pt, enCours=2pts)
+  double get workloadScore {
+    if (totalTasks == 0) return 0.0;
+    final score = (aFaire * 1.0 + enCours * 2.5);
+    // On normalise arbitrairement : 10 pts = 100% de charge théorique
+    return (score / 15.0 * 100).clamp(0.0, 100.0);
+  }
+
+  String get workloadLevel {
+    final score = workloadScore;
+    if (score < 30) return 'Faible';
+    if (score < 70) return 'Optimale';
+    return 'Élevée';
   }
 }

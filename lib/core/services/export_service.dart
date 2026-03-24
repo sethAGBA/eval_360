@@ -8,7 +8,12 @@ import '../models/depense.dart';
 import '../services/database_service.dart';
 import '../models/activite.dart';
 import '../models/indicateur.dart';
+import '../models/rapport_hebdo.dart';
+import '../models/ligne_rapport.dart';
+import '../models/rapport_mensuel.dart';
+import '../models/synthese_axe.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file_plus/open_file_plus.dart';
 
@@ -462,5 +467,401 @@ class ExportService {
         await OpenFile.open(fullPath);
       }
     }
+  }
+
+  // ============================================================================
+  // EXPORT RAPPORT HEBDOMADAIRE (Module 04)
+  // ============================================================================
+
+  Future<void> exportWeeklyReportToPdf({
+    required RapportHebdo rapport,
+    required List<LigneRapport> lignes,
+    String? agentNom,
+  }) async {
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.robotoRegular();
+    final fontBold = await PdfGoogleFonts.robotoBold();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        theme: pw.ThemeData.withFont(base: font, bold: fontBold),
+        header: (context) => _buildWeeklyHeader(context, rapport),
+        footer: (context) => _buildFooter(context),
+        build: (context) => [
+          _buildWeeklyReportInfo(rapport, agentNom),
+          pw.SizedBox(height: 20),
+          _buildWeeklyActivitiesTable(lignes),
+          pw.SizedBox(height: 30),
+          _buildSignatureSection(rapport),
+        ],
+      ),
+    );
+
+    final bytes = await pdf.save();
+    String fileName = 'Rapport_Hebdo_S${rapport.semaineNumero}_${rapport.annee}.pdf';
+
+    final String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choisir le dossier d\'enregistrement',
+    );
+
+    if (selectedDirectory != null) {
+      final String fullPath = '$selectedDirectory/$fileName';
+      final file = File(fullPath);
+      await file.writeAsBytes(bytes);
+      await OpenFile.open(fullPath);
+    }
+  }
+
+  pw.Widget _buildWeeklyHeader(pw.Context context, RapportHebdo rapport) {
+    return pw.Column(
+      children: [
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'CPDSE-CT / MDDL',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blue800,
+                  ),
+                ),
+                pw.Text(
+                  'Logiciel de Suivi-Évaluation',
+                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                ),
+              ],
+            ),
+            pw.Text(
+              'RAPPORT HEBDOMADAIRE',
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.blue900,
+              ),
+            ),
+          ],
+        ),
+        pw.Divider(thickness: 2, color: PdfColors.blue900),
+        pw.SizedBox(height: 10),
+      ],
+    );
+  }
+
+  pw.Widget _buildWeeklyReportInfo(RapportHebdo rapport, String? agentNom) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow('Agent:', agentNom ?? 'Non spécifié'),
+              _buildInfoRow('Période:', 'Semaine ${rapport.semaineNumero} / ${rapport.annee}'),
+              _buildInfoRow('Dates:', 'Du ${_dateFormat.format(rapport.dateDebut)} au ${_dateFormat.format(rapport.dateFin)}'),
+            ],
+          ),
+        ),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow('Statut:', rapport.statutValidation.label.toUpperCase()),
+              _buildInfoRow('Date de génération:', _dateFormat.format(DateTime.now())),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildInfoRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        children: [
+          pw.SizedBox(
+            width: 80,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildWeeklyActivitiesTable(List<LigneRapport> lignes) {
+    return pw.Table.fromTextArray(
+      headers: [
+        'Activités / Tâches',
+        'Lieu',
+        'Dates',
+        'Statut',
+        'Résultats / Observations'
+      ],
+      data: lignes.map((l) {
+        return [
+          l.description,
+          l.lieu ?? '-',
+          '${_dateFormat.format(l.dateDebut)}\n${_dateFormat.format(l.dateFin)}',
+          l.statutActivite,
+          l.resultatsAtteints ?? '-',
+        ];
+      }).toList(),
+      headerStyle: pw.TextStyle(
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+        fontSize: 10,
+      ),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blue800),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      cellHeight: 40,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(3),
+        1: const pw.FlexColumnWidth(1.5),
+        2: const pw.FlexColumnWidth(1.5),
+        3: const pw.FlexColumnWidth(1.5),
+        4: const pw.FlexColumnWidth(3),
+      },
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.center,
+        2: pw.Alignment.center,
+        3: pw.Alignment.center,
+        4: pw.Alignment.centerLeft,
+      },
+    );
+  }
+
+  pw.Widget _buildSignatureSection(RapportHebdo rapport) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Column(
+          children: [
+            pw.Text('L\'Agent', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 40),
+            pw.Text('____________________', style: const pw.TextStyle(color: PdfColors.grey400)),
+          ],
+        ),
+        pw.Column(
+          children: [
+            pw.Text('Le Superviseur', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 40),
+            pw.Text(
+              rapport.statutValidation == StatutValidationRapport.valide
+                  ? 'APPROUVÉ LE ${rapport.dateValidation != null ? _dateFormat.format(rapport.dateValidation!) : ""}'
+                  : '____________________',
+              style: pw.TextStyle(
+                color: rapport.statutValidation == StatutValidationRapport.valide
+                    ? PdfColors.green800
+                    : PdfColors.grey400,
+                fontSize: 9,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Exporter un rapport mensuel au format PDF
+  Future<Uint8List> exportMonthlyReportToPdf(
+    RapportMensuel rapport,
+    List<SyntheseAxe> syntheses,
+  ) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            _buildPdfHeader('RAPPORT MENSUEL D\'ACTIVITÉS'),
+            pw.SizedBox(height: 20),
+            _buildMonthlyInfoSection(rapport),
+            pw.SizedBox(height: 24),
+            pw.Text(
+              'SYNTHÈSE DE PERFORMANCE PAR AXE STRATÉGIQUE',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.blue900,
+              ),
+            ),
+            pw.SizedBox(height: 12),
+            _buildSyntheseAxesTable(syntheses),
+            pw.SizedBox(height: 24),
+            pw.Text(
+              'RECOMMANDATIONS ET PERSPECTIVES',
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Bullet(text: 'Renforcement du suivi de proximité pour l\'axe Infrastructures.'),
+            pw.Bullet(text: 'Accélération des décaissements pour les activités en cours.'),
+            pw.SizedBox(height: 40),
+            _buildMonthlySignatureSection(rapport),
+          ];
+        },
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  pw.Widget _buildMonthlyInfoSection(RapportMensuel rapport) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.grey300),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
+      ),
+      child: pw.Column(
+        children: [
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              _buildInfoItem('Mois', rapport.moisNom),
+              _buildInfoItem('Année', rapport.annee.toString()),
+              _buildInfoItem('Taux Global', '${rapport.tauxRealisationGlobal.toStringAsFixed(1)}%'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildSyntheseAxesTable(List<SyntheseAxe> syntheses) {
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey400),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(3),
+        1: const pw.FixedColumnWidth(80),
+        2: const pw.FixedColumnWidth(80),
+        3: const pw.FixedColumnWidth(80),
+      },
+      children: [
+        // Header
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          children: [
+            _buildTableCell('Axe Stratégique', isHeader: true),
+            _buildTableCell('Prévues', isHeader: true),
+            _buildTableCell('Réalisées', isHeader: true),
+            _buildTableCell('Taux (%)', isHeader: true),
+          ],
+        ),
+        // Lignes
+        ...syntheses.map((s) => pw.TableRow(
+          children: [
+            _buildTableCell(s.libelleAxe),
+            _buildTableCell(s.nombreActivitesPrevues.toString(), align: pw.TextAlign.center),
+            _buildTableCell(s.nombreActivitesRealisees.toString(), align: pw.TextAlign.center),
+            _buildTableCell('${s.tauxRealisation.toStringAsFixed(1)}%', align: pw.TextAlign.center),
+          ],
+        )),
+      ],
+    );
+  }
+
+  pw.Widget _buildTableCell(
+    String text, {
+    bool isHeader = false,
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(5),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: pw.TextStyle(
+          fontSize: 9,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfHeader(String title) {
+    return pw.Column(
+      children: [
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'CPDSE-CT / MDDL',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blue800,
+                  ),
+                ),
+                pw.Text(
+                  'Logiciel de Suivi-Évaluation',
+                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                ),
+              ],
+            ),
+            pw.Text(
+              title,
+              style: pw.TextStyle(
+                fontSize: 18,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColors.blue900,
+              ),
+            ),
+          ],
+        ),
+        pw.Divider(thickness: 2, color: PdfColors.blue900),
+        pw.SizedBox(height: 10),
+      ],
+    );
+  }
+
+  pw.Widget _buildMonthlySignatureSection(RapportMensuel rapport) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Column(
+          children: [
+            pw.Text('L\'Agent', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 40),
+            pw.Text('____________________', style: const pw.TextStyle(color: PdfColors.grey400)),
+          ],
+        ),
+        pw.Column(
+          children: [
+            pw.Text('Le Superviseur', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 40),
+            pw.Text(
+              rapport.statutValidation == StatutValidationRapport.valide
+                  ? 'APPROUVÉ LE ${rapport.dateValidation != null ? _dateFormat.format(rapport.dateValidation!) : ""}'
+                  : '____________________',
+              style: pw.TextStyle(
+                color: rapport.statutValidation == StatutValidationRapport.valide
+                    ? PdfColors.green800
+                    : PdfColors.grey400,
+                fontSize: 9,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

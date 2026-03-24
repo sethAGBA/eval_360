@@ -30,6 +30,25 @@ class DatabaseTables {
   // Budget & Finances
   static const String budgetLignes = 'budget_lignes';
   static const String depensesDecaissements = 'depenses_decaissements';
+
+  // Rapports Hebdomadaires (Module 04)
+  static const String rapportsHebdo = 'rapports_hebdo';
+  static const String lignesRapport = 'lignes_rapport';
+
+  // Rapports Mensuels (Module 05)
+  static const String rapportsMensuels = 'rapports_mensuels';
+  static const String syntheseAxesMensuels = 'synthese_axes_mensuels';
+
+  // Tâches (Module 06)
+  static const String taches = 'taches';
+
+  // Digitalisation & GED (Phase 3)
+  static const String documents = 'documents';
+  static const String termesDeReference = 'termes_de_reference';
+  static const String ordresMission = 'ordres_mission';
+  static const String rapportsStage = 'rapports_stage';
+  static const String communesPdc = 'communes_pdc';
+  static const String partenaniresPtf = 'partenaires_ptf';
 }
 
 /// Colonnes de la table utilisateurs_acces
@@ -102,4 +121,59 @@ class ZonesColumns {
   static const String latitude = 'latitude';
   static const String longitude = 'longitude';
   static const String populationTotale = 'population_totale';
+}
+
+/// Colonnes de la table rapports_hebdo
+class RapportsHebdoColumns {
+  RapportsHebdoColumns._();
+
+  static const String id = 'id';
+  static const String agentId = 'agent_id';
+  static const String semaineNumero = 'semaine_numero';
+  static const String annee = 'annee';
+  static const String dateDebut = 'date_debut';
+  static const String dateFin = 'date_fin';
+  static const String statutValidation = 'statut_validation';
+  static const String commentaireSuperviseur = 'commentaire_superviseur';
+  static const String valideParId = 'valide_par_id';
+  static const String dateValidation = 'date_validation';
+  static const String createdAt = 'created_at';
+  static const String updatedAt = 'updated_at';
+}
+
+/// Colonnes de la table lignes_rapport
+class LignesRapportColumns {
+  LignesRapportColumns._();
+
+  static const String id = 'id';
+  static const String rapportId = 'rapport_id';
+  static const String activiteId = 'activite_id';
+  static const String description = 'description';
+  static const String evenementConnexe = 'evenement_connexe';
+  static const String lieu = 'lieu';
+  static const String structureId = 'structure_id';
+  static const String responsable = 'responsable';
+  static const String dateDebut = 'date_debut';
+  static const String dateFin = 'date_fin';
+  static const String statutActivite = 'statut_activite';
+  static const String resultatsAtteints = 'resultats_atteints';
+  static const String difficultesRencontrees = 'difficultes_rencontrees';
+  static const String prochainesEtapes = 'prochaines_etapes';
+}
+
+/// Colonnes de la table taches
+class TachesColumns {
+  TachesColumns._();
+
+  static const String id = 'id';
+  static const String titre = 'titre';
+  static const String description = 'description';
+  static const String priorite = 'priorite';
+  static const String statut = 'statut';
+  static const String dateEcheance = 'date_echeance';
+  static const String pourcentageAvancement = 'pourcentage_avancement';
+  static const String agentId = 'agent_id';
+  static const String activiteId = 'activite_id';
+  static const String createdAt = 'created_at';
+  static const String updatedAt = 'updated_at';
 }

@@ -5,6 +5,13 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'migrations/v1_initial_schema.dart';
 import 'migrations/v2_project_management_schema.dart';
 import 'migrations/v3_schema_fixes.dart';
+import 'migrations/v4_weekly_reports_schema.dart';
+import 'migrations/v5_monthly_reports_schema.dart';
+import 'migrations/v6_tasks_schema.dart';
+import 'migrations/v7_digitalization_schema.dart';
+import 'migrations/v8_internship_schema.dart';
+import 'migrations/v9_communes_schema.dart';
+import 'migrations/v10_partenaires_schema.dart';
 
 /// Helper pour gérer la base de données SQLite
 class DatabaseHelper {
@@ -13,7 +20,7 @@ class DatabaseHelper {
 
   static Database? _database;
   static const String _databaseName = 'eval360.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 10;
 
   /// Obtenir l'instance de la base de données
   Future<Database> get database async {
@@ -57,6 +64,9 @@ class DatabaseHelper {
     await V1InitialSchema.migrate(db);
     await V2ProjectManagementSchema.migrate(db);
     await V3SchemaFixes.migrate(db);
+    await V4WeeklyReportsSchema.migrate(db);
+    await V5MonthlyReportsSchema.migrate(db);
+    await V6TasksSchema.migrate(db); // Added V6 migration
 
     // Insérer les données de test
     await _insertSeedData(db);
@@ -75,6 +85,31 @@ class DatabaseHelper {
 
     if (oldVersion < 3) {
       await V3SchemaFixes.migrate(db);
+    }
+
+    if (oldVersion < 4) {
+      await V4WeeklyReportsSchema.migrate(db);
+    }
+
+    if (oldVersion < 5) {
+      await V5MonthlyReportsSchema.migrate(db);
+    }
+
+    if (oldVersion < 6) {
+      await V6TasksSchema.migrate(db);
+    }
+
+    if (oldVersion < 7) {
+      await V7DigitalizationSchema.migrate(db);
+    }
+    if (oldVersion < 8) {
+      await V8InternshipSchema.migrate(db);
+    }
+    if (oldVersion < 9) {
+      await V9CommunesSchema.migrate(db);
+    }
+    if (oldVersion < 10) {
+      await V10PartenairesSchema.migrate(db);
     }
 
     // Les futures migrations seront ajoutées ici
