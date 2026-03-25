@@ -62,16 +62,35 @@ class DatabaseHelper {
 
     // Obtenir le chemin de la base de données
     final dbPath = await getDatabasesPath();
+
+    // Assurer que le dossier existe avant création/open
+    final dbDirectory = Directory(dbPath);
+    if (!await dbDirectory.exists()) {
+      await dbDirectory.create(recursive: true);
+    }
+
     final path = join(dbPath, _databaseName);
 
     // Ouvrir la base de données
-    return await openDatabase(
-      path,
-      version: _databaseVersion,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-      onConfigure: _onConfigure,
-    );
+    try {
+      return await openDatabase(
+        path,
+        version: _databaseVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+        onConfigure: _onConfigure,
+      );
+    } catch (e) {
+      print('❌ Erreur d\'ouverture de la DB: $e');
+      // Essayons de réparer avec une base de données en mémoire si le fichier est inaccessible
+      return await openDatabase(
+        inMemoryDatabasePath,
+        version: _databaseVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+        onConfigure: _onConfigure,
+      );
+    }
   }
 
   /// Configurer la base de données (activer les foreign keys)
