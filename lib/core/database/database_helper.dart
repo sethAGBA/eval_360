@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'migrations/v1_initial_schema.dart';
@@ -61,7 +62,15 @@ class DatabaseHelper {
     }
 
     // Obtenir le chemin de la base de données
-    final dbPath = await getDatabasesPath();
+    // Sur desktop (macOS/Windows/Linux), utiliser getApplicationSupportDirectory()
+    // pour éviter les erreurs d'E/S dans le chemin .dart_tool de sqflite_ffi
+    final String dbPath;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      dbPath = appSupportDir.path;
+    } else {
+      dbPath = await getDatabasesPath();
+    }
 
     // Assurer que le dossier existe avant création/open
     final dbDirectory = Directory(dbPath);
@@ -70,27 +79,16 @@ class DatabaseHelper {
     }
 
     final path = join(dbPath, _databaseName);
+    print('📂 Database path: $path');
 
     // Ouvrir la base de données
-    try {
-      return await openDatabase(
-        path,
-        version: _databaseVersion,
-        onCreate: _onCreate,
-        onUpgrade: _onUpgrade,
-        onConfigure: _onConfigure,
-      );
-    } catch (e) {
-      print('❌ Erreur d\'ouverture de la DB: $e');
-      // Essayons de réparer avec une base de données en mémoire si le fichier est inaccessible
-      return await openDatabase(
-        inMemoryDatabasePath,
-        version: _databaseVersion,
-        onCreate: _onCreate,
-        onUpgrade: _onUpgrade,
-        onConfigure: _onConfigure,
-      );
-    }
+    return await openDatabase(
+      path,
+      version: _databaseVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onConfigure: _onConfigure,
+    );
   }
 
   /// Configurer la base de données (activer les foreign keys)
@@ -316,7 +314,13 @@ class DatabaseHelper {
 
   /// Supprimer la base de données (pour les tests)
   Future<void> deleteDatabase() async {
-    final dbPath = await getDatabasesPath();
+    final String dbPath;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      dbPath = appSupportDir.path;
+    } else {
+      dbPath = await getDatabasesPath();
+    }
     final path = join(dbPath, _databaseName);
     await databaseFactory.deleteDatabase(path);
     _database = null;
