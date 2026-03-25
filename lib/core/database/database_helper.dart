@@ -100,24 +100,38 @@ class DatabaseHelper {
   Future<void> _onCreate(Database db, int version) async {
     print('Creating database version $version...');
 
-    // Exécuter les migrations initiales
+    // Exécuter TOUTES les migrations dans l'ordre
     await V1InitialSchema.migrate(db);
     await V2ProjectManagementSchema.migrate(db);
     await V3SchemaFixes.migrate(db);
     await V4WeeklyReportsSchema.migrate(db);
     await V5MonthlyReportsSchema.migrate(db);
-    await V6TasksSchema.migrate(db); // Added V6 migration
-
+    await V6TasksSchema.migrate(db);
+    await V7DigitalizationSchema.migrate(db);
+    await V8InternshipSchema.migrate(db);
+    await V9CommunesSchema.migrate(db);
     await V10PartenairesSchema.migrate(db);
     await V11ProjetPartenairesSchema.migrate(db);
     await V12UserMatriculeSchema.migrate(db);
     await V13UserTwoFactorSecretSchema.migrate(db);
     await V14EnhancedAssignmentsSchema.migrate(db);
+    await V15ReinforcedCommunes.migrate(db);
+    await V16LinkCommunesActivites.migrate(db);
+    await V17MultiCommunesActivites.migrate(db);
+    await V18AddCommunesCreatedAt.migrate(db);
+    await V19MultiCadreLogique.migrate(db);
+    await V20MultiZones.migrate(db);
+    await V21LinkZonesToCommunes.migrate(db);
+    await V22AppConfigSchema.migrate(db);
+    await V23PtbaSchema.migrate(db);
+    await V24FixPtbaSchema.migrate(db);
+    await V25AddTypeToPlansTravail.migrate(db);
+    await V26AddMissingColumnsToPlansTravail.migrate(db);
 
     // Insérer les données de test
     await _insertSeedData(db);
 
-    print('Database created successfully!');
+    print('Database created successfully (v$version)!');
   }
 
   /// Mettre à jour la base de données lors d'une nouvelle version
