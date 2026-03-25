@@ -18,6 +18,7 @@ import '../widgets/add_indicator_dialog.dart';
 import '../widgets/add_activity_dialog.dart';
 import '../widgets/add_measure_dialog.dart';
 import '../widgets/update_activity_progress_dialog.dart';
+import '../widgets/add_cadre_logique_dialog.dart';
 
 /// Page de détail d'un projet
 class ProjectDetailPage extends ConsumerWidget {
@@ -366,8 +367,11 @@ class ProjectDetailPage extends ConsumerWidget {
     return Consumer(
       builder: (context, ref, child) {
         final bailleursAsync = ref.watch(projectBailleursProvider(projectId));
+        final partenairesAsync = ref.watch(projectPartenairesProvider(projectId));
 
         return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(AppSizes.paddingL),
             child: Column(
@@ -380,29 +384,48 @@ class ProjectDetailPage extends ConsumerWidget {
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Divider(),
+                
+                // Bailleurs section
                 bailleursAsync.when(
                   data: (bailleurs) {
-                    if (bailleurs.isEmpty)
-                      return const Text('Aucun bailleur enregistré.');
+                    if (bailleurs.isEmpty) return const SizedBox.shrink();
                     return Column(
-                      children: bailleurs
-                          .map(
-                            (b) => ListTile(
-                              leading: const Icon(
-                                Icons.business,
-                                color: AppColors.primary,
-                              ),
-                              title: Text(b.nom),
-                              subtitle: Text(b.type.label),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          )
-                          .toList(),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Bailleurs de Fonds', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: AppSizes.paddingS),
+                        ...bailleurs.map((b) => _buildEntityItem(b.nom, b.type.label, Icons.account_balance)),
+                        const SizedBox(height: AppSizes.paddingM),
+                      ],
                     );
                   },
-                  loading: () => const CircularProgressIndicator(),
+                  loading: () => const LinearProgressIndicator(),
                   error: (err, stack) => Text('Erreur: $err'),
                 ),
+
+                // Partenaires section
+                partenairesAsync.when(
+                  data: (partenaires) {
+                    if (partenaires.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Partenaires Techniques', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        const SizedBox(height: AppSizes.paddingS),
+                        ...partenaires.map((p) => _buildEntityItem(p.nom, p.type.label, Icons.handshake)),
+                      ],
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (err, stack) => Text('Erreur: $err'),
+                ),
+
+                if ((bailleursAsync.asData?.value.isEmpty ?? true) && 
+                    (partenairesAsync.asData?.value.isEmpty ?? true))
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSizes.paddingM),
+                    child: Text('Aucun bailleur ou partenaire enregistré.', style: TextStyle(fontStyle: FontStyle.italic)),
+                  ),
               ],
             ),
           ),
@@ -411,42 +434,187 @@ class ProjectDetailPage extends ConsumerWidget {
     );
   }
 
+  Widget _buildEntityItem(String name, String type, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(type, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCadreLogiqueTab(BuildContext context, int projectId) {
     return Consumer(
       builder: (context, ref, child) {
         final cadreAsync = ref.watch(cadreLogiqueProvider(projectId));
-        return cadreAsync.when(
-          data: (elements) {
-            if (elements.isEmpty)
-              return const Center(
-                child: Text('Aucun élément de cadre logique.'),
-              );
-            return ListView.builder(
+        return Column(
+          children: [
+            Padding(
               padding: const EdgeInsets.all(AppSizes.paddingL),
-              itemCount: elements.length,
-              itemBuilder: (context, index) {
-                final item = elements[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: AppSizes.paddingM),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: _getNiveauColor(
-                        item.niveau,
-                      ).withValues(alpha: 0.2),
-                      child: Text(
-                        item.niveau.name[0].toUpperCase(),
-                        style: TextStyle(color: _getNiveauColor(item.niveau)),
-                      ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Structure du Projet',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                    title: Text(item.code),
-                    subtitle: Text(item.libelle),
                   ),
-                );
-              },
-            );
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => Center(child: Text('Erreur: $err')),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await showDialog<bool>(
+                        context: context,
+                        builder: (context) =>
+                            AddCadreLogiqueDialog(projectId: projectId),
+                      );
+                      if (result == true) {
+                        ref.invalidate(cadreLogiqueProvider(projectId));
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Ajouter'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: cadreAsync.when(
+                data: (elements) {
+                  if (elements.isEmpty) {
+                    return const Center(
+                      child: Text('Aucun élément de cadre logique.'),
+                    );
+                  }
+
+                  // Trier les éléments par niveau et ordre
+                  // En attendant une vraie structure en arbre, on affiche indifféremment
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSizes.paddingL,
+                    ),
+                    itemCount: elements.length,
+                    itemBuilder: (context, index) {
+                      final item = elements[index];
+                      double indentation = 0;
+                      switch (item.niveau) {
+                        case NiveauCadreLogique.impact:
+                          indentation = 0;
+                          break;
+                        case NiveauCadreLogique.outcome:
+                          indentation = 16;
+                          break;
+                        case NiveauCadreLogique.output:
+                          indentation = 32;
+                          break;
+                        case NiveauCadreLogique.activite:
+                          indentation = 48;
+                          break;
+                      }
+
+                      return Padding(
+                        padding: EdgeInsets.only(left: indentation),
+                        child: Card(
+                          margin: const EdgeInsets.only(
+                            bottom: AppSizes.paddingM,
+                          ),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: _getNiveauColor(
+                                item.niveau,
+                              ).withValues(alpha: 0.2),
+                              child: Text(
+                                item.niveau.name[0].toUpperCase(),
+                                style: TextStyle(
+                                  color: _getNiveauColor(item.niveau),
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              '${item.code}: ${item.libelle}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: item.description != null
+                                ? Text(
+                                    item.description!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 20),
+                                  onPressed: () async {
+                                    final result = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AddCadreLogiqueDialog(
+                                        projectId: projectId,
+                                        element: item,
+                                      ),
+                                    );
+                                    if (result == true) {
+                                      ref.invalidate(
+                                        cadreLogiqueProvider(projectId),
+                                      );
+                                    }
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                                  onPressed: () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Confirmer la suppression'),
+                                        content: const Text('Voulez-vous vraiment supprimer cet élément du cadre logique ? Cela peut affecter les activités et indicateurs liés.'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, false),
+                                            child: const Text('Annuler'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, true),
+                                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                            child: const Text('Supprimer'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (confirm == true) {
+                                      await DatabaseService.instance.deleteCadreLogique(item.id!);
+                                      ref.invalidate(cadreLogiqueProvider(projectId));
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(child: Text('Erreur: $err')),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -674,6 +842,24 @@ class ProjectDetailPage extends ConsumerWidget {
                                     _buildStatutChip(task),
                                     const SizedBox(width: 8),
                                     IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () async {
+                                        final result = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) =>
+                                              AddActiviteDialog(
+                                                projectId: projectId,
+                                                activite: task,
+                                              ),
+                                        );
+                                        if (result == true) {
+                                          ref.invalidate(activitesProvider(projectId));
+                                          ref.invalidate(projectStatsProvider(projectId));
+                                        }
+                                      },
+                                      tooltip: 'Modifier l\'activité',
+                                    ),
+                                    IconButton(
                                       icon: const Icon(Icons.edit_note),
                                       onPressed: () async {
                                         final result = await showDialog<bool>(
@@ -727,6 +913,76 @@ class ProjectDetailPage extends ConsumerWidget {
                                         ),
                                       ],
                                     ),
+                                    if (task.cadreLogiqueIds.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Consumer(
+                                        builder: (context, ref, _) {
+                                          final cadreAsync = ref.watch(cadreLogiqueProvider(projectId));
+                                          return cadreAsync.when(
+                                            data: (elements) {
+                                              final linkedCodes = elements
+                                                  .where((e) => task.cadreLogiqueIds.contains(e.id))
+                                                  .map((e) => e.code)
+                                                  .join(', ');
+                                              return Row(
+                                                children: [
+                                                  const Icon(Icons.account_tree_outlined, size: 14, color: Colors.blueGrey),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Cadre Logique: $linkedCodes',
+                                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                        fontStyle: FontStyle.italic,
+                                                        color: Colors.blueGrey,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            loading: () => const SizedBox.shrink(),
+                                            error: (_, __) => const SizedBox.shrink(),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                    if (task.zoneIds.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Consumer(
+                                        builder: (context, ref, _) {
+                                          final zonesAsync = ref.watch(zonesProvider(projectId));
+                                          return zonesAsync.when(
+                                            data: (elements) {
+                                              final linkedNames = elements
+                                                  .where((e) => task.zoneIds.contains(e.id))
+                                                  .map((e) => e.communeDistrict ?? e.provinceDepartement ?? e.region)
+                                                  .join(', ');
+                                              return Row(
+                                                children: [
+                                                  const Icon(Icons.map_outlined, size: 14, color: Colors.teal),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Zones: $linkedNames',
+                                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                        fontStyle: FontStyle.italic,
+                                                        color: Colors.teal,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            loading: () => const SizedBox.shrink(),
+                                            error: (_, __) => const SizedBox.shrink(),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

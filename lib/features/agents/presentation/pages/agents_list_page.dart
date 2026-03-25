@@ -37,6 +37,11 @@ class AgentsListPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(child: Text('Erreur: $err')),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/agents/new'),
+        icon: const Icon(Icons.person_add),
+        label: const Text('Nouvel Agent'),
+      ),
     );
   }
 }
@@ -63,9 +68,31 @@ class _AgentCard extends ConsumerWidget {
             style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
           ),
         ),
-        title: Text(
-          agent.nomComplet,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        title: Row(
+          children: [
+            Text(
+              agent.nomComplet,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            if (agent.matricule != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  agent.matricule!,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

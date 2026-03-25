@@ -4,6 +4,7 @@ import 'package:eval_360/core/models/rapport_hebdo.dart';
 import 'package:eval_360/core/models/rapport_mensuel.dart';
 import 'package:eval_360/core/models/synthese_axe.dart';
 import 'package:eval_360/features/reports/presentation/providers/monthly_report_provider.dart';
+import 'package:eval_360/core/services/export_service.dart';
 
 class MonthlyReportDetailPage extends ConsumerWidget {
   final int reportId;
@@ -19,10 +20,9 @@ class MonthlyReportDetailPage extends ConsumerWidget {
         title: const Text('Détails du Rapport Mensuel'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              // Export PDF logic here later
-            },
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: () => _exportPdf(context, ref),
+            tooltip: 'Exporter en PDF',
           ),
         ],
       ),
@@ -205,5 +205,22 @@ class MonthlyReportDetailPage extends ConsumerWidget {
       decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
       child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
     );
+  }
+  Future<void> _exportPdf(BuildContext context, WidgetRef ref) async {
+    try {
+      final detail = await ref.read(monthlyReportDetailProvider(reportId).future);
+      if (detail != null) {
+        await ExportService.instance.exportMonthlyReportToPdf(
+          rapport: detail.rapport,
+          syntheses: detail.syntheses,
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de l\'export : $e')),
+        );
+      }
+    }
   }
 }

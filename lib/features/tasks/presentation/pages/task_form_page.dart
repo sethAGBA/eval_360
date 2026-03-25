@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/models/tache.dart';
+import '../../../agents/presentation/providers/agent_provider.dart';
+import '../../../projects/presentation/providers/activite_provider.dart';
 import '../providers/task_provider.dart';
 
 class TaskFormPage extends ConsumerStatefulWidget {
@@ -22,7 +24,8 @@ class _TaskFormState {
   TachePriorite priorite = TachePriorite.moyenne;
   TacheStatut statut = TacheStatut.aFaire;
   DateTime? dateEcheance;
-  double porcentageAvancement = 0.0;
+  double pourcentageAvancement = 0.0;
+  List<int> agentIds = [];
   int? activiteId;
 }
 
@@ -44,7 +47,8 @@ class _TaskFormPageState extends ConsumerState<TaskFormPage> {
     _state.priorite = tache.priorite;
     _state.statut = tache.statut;
     _state.dateEcheance = tache.dateEcheance;
-    _state.porcentageAvancement = tache.pourcentageAvancement;
+    _state.pourcentageAvancement = tache.pourcentageAvancement;
+    _state.agentIds = List.from(tache.agentIds);
     _state.activiteId = tache.activiteId;
     _isInitialized = true;
   }
@@ -135,6 +139,58 @@ class _TaskFormPageState extends ConsumerState<TaskFormPage> {
                 ],
               ),
               const SizedBox(height: AppSizes.paddingL),
+              // Assignation à des agents (Multi-choix)
+              const Text('Assigner à (Agents) *', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: AppSizes.paddingS),
+              ref.watch(agentsProvider).when(
+                data: (agents) => Wrap(
+                  spacing: 8,
+                  children: agents.map((agent) {
+                    final isSelected = _state.agentIds.contains(agent.id);
+                    return FilterChip(
+                      label: Text(agent.nomComplet),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _state.agentIds.add(agent.id!);
+                          } else {
+                            _state.agentIds.remove(agent.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const Text('Erreur lors du chargement des agents'),
+              ),
+              if (_state.agentIds.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text('Veuillez assigner au moins un agent', 
+                    style: TextStyle(color: AppColors.error, fontSize: 12)),
+                ),
+              const SizedBox(height: AppSizes.paddingL),
+              // Liaison à une activité
+              ref.watch(activitesProvider).when(
+                data: (activites) => DropdownButtonFormField<int?>(
+                  value: activites.any((a) => a.id == _state.activiteId) ? _state.activiteId : null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Lier à l\'activité (Optionnel)'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Aucune activité')),
+                    ...activites.map((a) => DropdownMenuItem(
+                      value: a.id,
+                      child: Text('${a.codeActivite}: ${a.intitule}', overflow: TextOverflow.ellipsis),
+                    )),
+                  ],
+                  onChanged: (val) => setState(() => _state.activiteId = val),
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+              const SizedBox(height: AppSizes.paddingL),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Date d\'échéance'),
@@ -155,13 +211,13 @@ class _TaskFormPageState extends ConsumerState<TaskFormPage> {
                 },
               ),
               const SizedBox(height: AppSizes.paddingL),
-              Text('Avancement: ${_state.porcentageAvancement.toInt()}%'),
+              Text('Avancement: ${_state.pourcentageAvancement.toInt()}%'),
               Slider(
-                value: _state.porcentageAvancement,
+                value: _state.pourcentageAvancement,
                 min: 0,
                 max: 100,
                 divisions: 10,
-                onChanged: (val) => setState(() => _state.porcentageAvancement = val),
+                onChanged: (val) => setState(() => _state.pourcentageAvancement = val),
               ),
               const SizedBox(height: AppSizes.paddingXL),
               SizedBox(
@@ -200,8 +256,8 @@ class _TaskFormPageState extends ConsumerState<TaskFormPage> {
         priorite: _state.priorite,
         statut: _state.statut,
         dateEcheance: _state.dateEcheance,
-        pourcentageAvancement: _state.porcentageAvancement,
-        agentId: 1, // Temporaire: à remplacer par ID user connecté
+        pourcentageAvancement: _state.pourcentageAvancement,
+        agentIds: _state.agentIds,
         activiteId: _state.activiteId,
       );
 

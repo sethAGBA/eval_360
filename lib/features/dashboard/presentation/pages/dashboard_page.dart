@@ -8,6 +8,9 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/services/export_service.dart';
 
+import '../../../../core/models/tache.dart';
+import '../providers/dashboard_providers.dart';
+
 /// Page du tableau de bord principal
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -141,8 +144,18 @@ class DashboardPage extends ConsumerWidget {
 
               const SizedBox(height: AppSizes.paddingXL),
 
+              // Activités du jour
+              _buildActivitiesOfDaySection(context, ref),
+
+              const SizedBox(height: AppSizes.paddingXL),
+
+              // Tâches en attente
+              _buildPendingTasksSection(context, ref),
+
+              const SizedBox(height: AppSizes.paddingXL),
+
               // Alertes critiques
-              _buildAlertsSection(context),
+              _buildAlertsSection(context, ref),
 
               const SizedBox(height: AppSizes.paddingXL),
 
@@ -231,7 +244,9 @@ class DashboardPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildAlertsSection(BuildContext context) {
+  Widget _buildActivitiesOfDaySection(BuildContext context, WidgetRef ref) {
+    final activitiesAsync = ref.watch(activitiesOfTheDayProvider);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSizes.paddingL),
@@ -240,7 +255,115 @@ class DashboardPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.warning_amber, color: AppColors.warning),
+                const Icon(Icons.today, color: AppColors.primary),
+                const SizedBox(width: AppSizes.paddingM),
+                Text(
+                  'Activités du Jour',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.paddingL),
+            activitiesAsync.when(
+              data: (activities) {
+                if (activities.isEmpty) {
+                  return const Text(
+                    'Aucune activité prévue pour aujourd\'hui.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  );
+                }
+                return Column(
+                  children: activities.take(5).map((act) => ListTile(
+                    leading: const Icon(Icons.event_note, color: AppColors.primary),
+                    title: Text(act.intitule),
+                    subtitle: Text(act.statut.label),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      // Optionnel: navigation vers l'activité
+                    },
+                  )).toList(),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (err, stack) => Text('Erreur: $err', style: const TextStyle(color: AppColors.error)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingTasksSection(BuildContext context, WidgetRef ref) {
+    final tasksAsync = ref.watch(pendingTasksProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.paddingL),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.assignment_late, color: AppColors.warning),
+                    const SizedBox(width: AppSizes.paddingM),
+                    Text(
+                      'Tâches en Attente',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () => context.go('/tasks'),
+                  child: const Text('Voir le Kanban'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.paddingL),
+            tasksAsync.when(
+              data: (tasks) {
+                if (tasks.isEmpty) {
+                  return const Text(
+                    'Aucune tâche en attente.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  );
+                }
+                return Column(
+                  children: tasks.take(5).map((tache) => ListTile(
+                    leading: Icon(
+                      tache.statut == TacheStatut.aFaire ? Icons.radio_button_unchecked : Icons.hourglass_bottom,
+                      color: tache.statut == TacheStatut.aFaire ? AppColors.info : AppColors.primary,
+                    ),
+                    title: Text(tache.titre),
+                    subtitle: Text(tache.statut.label),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go('/tasks'),
+                  )).toList(),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (err, stack) => Text('Erreur: $err', style: const TextStyle(color: AppColors.error)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertsSection(BuildContext context, WidgetRef ref) {
+    final alertsAsync = ref.watch(criticalAlertsProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.paddingL),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber, color: AppColors.error),
                 const SizedBox(width: AppSizes.paddingM),
                 Text(
                   'Alertes Critiques',
@@ -249,12 +372,28 @@ class DashboardPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppSizes.paddingL),
-            _buildAlertItem(
-              context,
-              title: 'Données Temps Réel',
-              description:
-                  'Le tableau de bord est maintenant connecté à la base de données.',
-              severity: 'info',
+            alertsAsync.when(
+              data: (alerts) {
+                if (alerts.isEmpty) {
+                  return const Text(
+                    'Aucune alerte pour l\'instant.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  );
+                }
+                return Column(
+                  children: alerts.take(5).map((alerte) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSizes.paddingM),
+                    child: _buildAlertItem(
+                      context,
+                      title: alerte.title,
+                      description: alerte.description,
+                      severity: alerte.severity,
+                    ),
+                  )).toList(),
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (err, stack) => Text('Erreur: $err', style: const TextStyle(color: AppColors.error)),
             ),
           ],
         ),

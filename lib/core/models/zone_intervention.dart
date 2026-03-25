@@ -11,6 +11,7 @@ class ZoneIntervention {
   final double? latitude;
   final double? longitude;
   final int? populationTotale;
+  final int? communeId;
 
   const ZoneIntervention({
     this.id,
@@ -22,6 +23,7 @@ class ZoneIntervention {
     this.latitude,
     this.longitude,
     this.populationTotale,
+    this.communeId,
   });
 
   /// Convertir en Map pour la base de données
@@ -36,6 +38,7 @@ class ZoneIntervention {
       ZonesColumns.latitude: latitude,
       ZonesColumns.longitude: longitude,
       ZonesColumns.populationTotale: populationTotale,
+      ZonesColumns.communeId: communeId,
     };
   }
 
@@ -51,6 +54,7 @@ class ZoneIntervention {
       latitude: map[ZonesColumns.latitude] as double?,
       longitude: map[ZonesColumns.longitude] as double?,
       populationTotale: map[ZonesColumns.populationTotale] as int?,
+      communeId: map[ZonesColumns.communeId] as int?,
     );
   }
 
@@ -65,6 +69,7 @@ class ZoneIntervention {
     double? latitude,
     double? longitude,
     int? populationTotale,
+    int? communeId,
   }) {
     return ZoneIntervention(
       id: id ?? this.id,
@@ -76,6 +81,7 @@ class ZoneIntervention {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       populationTotale: populationTotale ?? this.populationTotale,
+      communeId: communeId ?? this.communeId,
     );
   }
 
@@ -116,7 +122,7 @@ class ZoneIntervention {
 
   @override
   String toString() {
-    return 'ZoneIntervention(id: $id, nom: $nomComplet)';
+    return 'ZoneIntervention(id: $id, nom: $nomComplet, communeId: $communeId)';
   }
 
   @override
@@ -125,9 +131,10 @@ class ZoneIntervention {
 
     return other is ZoneIntervention &&
         other.id == id &&
-        other.nomComplet == nomComplet;
+        other.nomComplet == nomComplet &&
+        other.communeId == communeId;
   }
 
   @override
-  int get hashCode => Object.hash(id, nomComplet);
+  int get hashCode => Object.hash(id, nomComplet, communeId);
 }

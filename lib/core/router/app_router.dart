@@ -13,16 +13,23 @@ import '../../features/tasks/presentation/pages/tasks_kanban_page.dart';
 import '../../features/tasks/presentation/pages/task_form_page.dart';
 import '../../features/agents/presentation/pages/agents_list_page.dart';
 import '../../features/agents/presentation/pages/agent_detail_page.dart';
+import '../../features/agents/presentation/pages/agent_form_page.dart';
 import '../../features/budget/presentation/pages/budget_dashboard_page.dart';
 import '../../features/budget/presentation/pages/all_expenses_page.dart';
 import '../../features/ged/presentation/pages/ged_page.dart';
 import '../../features/ged/presentation/pages/tdr_form_page.dart';
 import '../../features/ged/presentation/pages/ordre_mission_form_page.dart';
 import '../../features/ged/presentation/pages/rapport_stage_form_page.dart';
+import '../../features/ged/presentation/pages/tdrs_list_page.dart';
+import '../../features/ged/presentation/pages/ordres_mission_list_page.dart';
+import '../../features/ged/presentation/pages/rapports_stage_list_page.dart';
 import '../../features/communes/presentation/pages/communes_list_page.dart';
 import '../../features/reporting/presentation/pages/reporting_dashboard_page.dart';
 import '../../features/partenaires/presentation/pages/partenaires_list_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/ptba/presentation/pages/ptba_list_page.dart';
+import '../../features/ptba/presentation/pages/ptba_detail_page.dart';
+import '../../features/ptba/presentation/pages/ptba_form_page.dart';
 import '../../features/shared/widgets/main_layout.dart';
 
 /// Configuration du routeur de l'application
@@ -52,6 +59,32 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/projects/new',
           builder: (context, state) => const ProjectFormPage(),
+        ),
+
+        // -------------------------
+        // PTBA / Planification
+        // -------------------------
+        GoRoute(
+          path: '/ptba',
+          builder: (context, state) => const PtbaListPage(),
+        ),
+        GoRoute(
+          path: '/ptba/new',
+          builder: (context, state) => const PtbaFormPage(),
+        ),
+        GoRoute(
+          path: '/ptba/:id',
+          builder: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            return PtbaDetailPage(id: id);
+          },
+        ),
+        GoRoute(
+          path: '/ptba/:id/edit',
+          builder: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            return PtbaFormPage(id: id);
+          },
         ),
 
         // Édition d'un projet
@@ -127,10 +160,21 @@ final appRouter = GoRouter(
           builder: (context, state) => const AgentsListPage(),
           routes: [
             GoRoute(
+              path: 'new',
+              builder: (context, state) => const AgentFormPage(),
+            ),
+            GoRoute(
               path: ':id',
               builder: (context, state) {
                 final id = int.parse(state.pathParameters['id']!);
                 return AgentDetailPage(agentId: id);
+              },
+            ),
+            GoRoute(
+              path: ':id/edit',
+              builder: (context, state) {
+                final id = int.parse(state.pathParameters['id']!);
+                return AgentFormPage(agentId: id);
               },
             ),
           ],
@@ -166,6 +210,18 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/processus/rapport-stage',
           builder: (context, state) => const RapportStageFormPage(),
+        ),
+        GoRoute(
+          path: '/processus/tdr/list',
+          builder: (context, state) => const TdrsListPage(),
+        ),
+        GoRoute(
+          path: '/processus/ordres-mission/list',
+          builder: (context, state) => const OrdresMissionListPage(),
+        ),
+        GoRoute(
+          path: '/processus/rapports-stage/list',
+          builder: (context, state) => const RapportsStageListPage(),
         ),
         GoRoute(
           path: '/communes',

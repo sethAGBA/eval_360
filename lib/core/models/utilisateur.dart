@@ -4,6 +4,7 @@ import '../database/database_tables.dart';
 /// Modèle de données pour un utilisateur du système
 class Utilisateur {
   final int? id;
+  final String? matricule;
   final String username;
   final String email;
   final String passwordHash;
@@ -21,6 +22,7 @@ class Utilisateur {
 
   const Utilisateur({
     this.id,
+    this.matricule,
     required this.username,
     required this.email,
     required this.passwordHash,
@@ -41,6 +43,7 @@ class Utilisateur {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) UtilisateursColumns.id: id,
+      UtilisateursColumns.matricule: matricule,
       UtilisateursColumns.username: username,
       UtilisateursColumns.email: email,
       UtilisateursColumns.passwordHash: passwordHash,
@@ -53,7 +56,7 @@ class Utilisateur {
       UtilisateursColumns.derniereConnexion: derniereConnexion
           ?.toIso8601String(),
       UtilisateursColumns.twoFactorEnabled: twoFactorEnabled ? 1 : 0,
-      'two_factor_secret': twoFactorSecret,
+      UtilisateursColumns.twoFactorSecret: twoFactorSecret,
       UtilisateursColumns.createdAt: createdAt.toIso8601String(),
       UtilisateursColumns.updatedAt: updatedAt.toIso8601String(),
     };
@@ -63,6 +66,7 @@ class Utilisateur {
   factory Utilisateur.fromMap(Map<String, dynamic> map) {
     return Utilisateur(
       id: map[UtilisateursColumns.id] as int?,
+      matricule: map[UtilisateursColumns.matricule] as String?,
       username: map[UtilisateursColumns.username] as String,
       email: map[UtilisateursColumns.email] as String,
       passwordHash: map[UtilisateursColumns.passwordHash] as String,
@@ -85,7 +89,7 @@ class Utilisateur {
           ? DateTime.parse(map[UtilisateursColumns.derniereConnexion] as String)
           : null,
       twoFactorEnabled: map[UtilisateursColumns.twoFactorEnabled] == 1,
-      twoFactorSecret: map['two_factor_secret'] as String?,
+      twoFactorSecret: map[UtilisateursColumns.twoFactorSecret] as String?,
       createdAt: DateTime.parse(map[UtilisateursColumns.createdAt] as String),
       updatedAt: DateTime.parse(map[UtilisateursColumns.updatedAt] as String),
     );
@@ -94,6 +98,7 @@ class Utilisateur {
   /// Créer une copie avec modifications
   Utilisateur copyWith({
     int? id,
+    String? matricule,
     String? username,
     String? email,
     String? passwordHash,
@@ -111,6 +116,7 @@ class Utilisateur {
   }) {
     return Utilisateur(
       id: id ?? this.id,
+      matricule: matricule ?? this.matricule,
       username: username ?? this.username,
       email: email ?? this.email,
       passwordHash: passwordHash ?? this.passwordHash,

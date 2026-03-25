@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/models/tache.dart';
+import '../../../agents/presentation/providers/agent_provider.dart';
+import '../../../projects/presentation/providers/activite_provider.dart';
 import '../providers/task_provider.dart';
 
 class TasksKanbanPage extends ConsumerWidget {
@@ -18,6 +20,28 @@ class TasksKanbanPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Gestion des Tâches (Kanban)'),
         actions: [
+          ref.watch(agentsProvider).when(
+            data: (agents) => DropdownButton<int?>(
+              value: ref.watch(taskFiltersProvider).agentId,
+              hint: const Text('Filtrer par agent'),
+              underline: const SizedBox.shrink(),
+              dropdownColor: Colors.white,
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Tous les agents')),
+                ...agents.map((a) => DropdownMenuItem(
+                  value: a.id,
+                  child: Text(a.nomComplet),
+                )),
+              ],
+              onChanged: (val) {
+                ref.read(taskFiltersProvider.notifier).update(
+                  (state) => state.copyWith(agentId: val),
+                );
+              },
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(tasksProvider),
@@ -25,7 +49,7 @@ class TasksKanbanPage extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () => _showAddTaskDialog(context, ref),
             icon: const Icon(Icons.add),
-            label: const Text('Nouvelle Tâche'),
+            label: const Text('Nouvelle'),
           ).paddingOnly(right: AppSizes.paddingL),
         ],
       ),
@@ -138,7 +162,7 @@ class TasksKanbanPage extends ConsumerWidget {
   }
 }
 
-class _TaskCardContent extends StatelessWidget {
+class _TaskCardContent extends ConsumerWidget {
   final Tache tache;
   final bool isFeedback;
   final VoidCallback? onTap;
@@ -146,7 +170,15 @@ class _TaskCardContent extends StatelessWidget {
   const _TaskCardContent({required this.tache, this.isFeedback = false, this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final agentsAsync = ref.watch(agentsProvider);
+    final activitesAsync = ref.watch(activitesProvider);
+    
+    final taskAgents = agentsAsync.whenOrNull(data: (list) => list.where((a) => tache.agentIds.contains(a.id)).toList()) ?? [];
+    final activite = tache.activiteId != null 
+        ? activitesAsync.whenOrNull(data: (list) => list.firstWhere((a) => a.id == tache.activiteId))
+        : null;
+
     return Card(
       elevation: isFeedback ? 8 : 1,
       margin: const EdgeInsets.only(bottom: AppSizes.paddingS),
@@ -178,6 +210,20 @@ class _TaskCardContent extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+              if (activite != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    activite.codeActivite,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
@@ -215,6 +261,19 @@ class _TaskCardContent extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ),
+                  if (taskAgents.isNotEmpty)
+                    Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          taskAgents.length == 1 
+                              ? taskAgents.first.nomComplet.split(' ').first
+                              : '${taskAgents.first.nomComplet.split(' ').first} +${taskAgents.length - 1}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                 ],
               ),

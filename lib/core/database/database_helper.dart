@@ -12,6 +12,22 @@ import 'migrations/v7_digitalization_schema.dart';
 import 'migrations/v8_internship_schema.dart';
 import 'migrations/v9_communes_schema.dart';
 import 'migrations/v10_partenaires_schema.dart';
+import 'migrations/v11_projet_partenaires_schema.dart';
+import 'migrations/v12_user_matricule_schema.dart';
+import 'migrations/v13_user_two_factor_secret_schema.dart';
+import 'migrations/v14_enhanced_assignments_schema.dart';
+import 'migrations/v15_reinforced_communes.dart';
+import 'migrations/v16_link_communes_activites.dart';
+import 'migrations/v17_multi_communes_activites.dart';
+import 'migrations/v18_add_communes_created_at.dart';
+import 'migrations/v19_multi_cadre_logique.dart';
+import 'migrations/v20_multi_zones.dart';
+import 'migrations/v21_link_zones_to_communes.dart';
+import 'migrations/v22_app_config_schema.dart';
+import 'migrations/v23_ptba_schema.dart';
+import 'migrations/v24_fix_ptba_schema.dart';
+import 'migrations/v25_add_type_to_plans_travail.dart';
+import 'migrations/v26_add_missing_columns_to_plans_travail.dart';
 
 /// Helper pour gérer la base de données SQLite
 class DatabaseHelper {
@@ -20,7 +36,14 @@ class DatabaseHelper {
 
   static Database? _database;
   static const String _databaseName = 'eval360.db';
-  static const int _databaseVersion = 10;
+  static const int _databaseVersion = 26;
+
+  // Historique des versions :
+  // V18: Ajout de created_at aux communes
+  // V19: Ajout de created_at aux projets
+  // V20: Migration multi-agents pour les tâches et activités
+  // V21: Support multi-zones pour les activités
+  // V22: Table app_config pour le branding des rapports
 
   /// Obtenir l'instance de la base de données
   Future<Database> get database async {
@@ -68,6 +91,12 @@ class DatabaseHelper {
     await V5MonthlyReportsSchema.migrate(db);
     await V6TasksSchema.migrate(db); // Added V6 migration
 
+    await V10PartenairesSchema.migrate(db);
+    await V11ProjetPartenairesSchema.migrate(db);
+    await V12UserMatriculeSchema.migrate(db);
+    await V13UserTwoFactorSecretSchema.migrate(db);
+    await V14EnhancedAssignmentsSchema.migrate(db);
+
     // Insérer les données de test
     await _insertSeedData(db);
 
@@ -110,6 +139,54 @@ class DatabaseHelper {
     }
     if (oldVersion < 10) {
       await V10PartenairesSchema.migrate(db);
+    }
+    if (oldVersion < 11) {
+      await V11ProjetPartenairesSchema.migrate(db);
+    }
+    if (oldVersion < 12) {
+      await V12UserMatriculeSchema.migrate(db);
+    }
+    if (oldVersion < 13) {
+      await V13UserTwoFactorSecretSchema.migrate(db);
+    }
+    if (oldVersion < 14) {
+      await V14EnhancedAssignmentsSchema.migrate(db);
+    }
+    if (oldVersion < 15) {
+      await V15ReinforcedCommunes.migrate(db);
+    }
+    if (oldVersion < 16) {
+      await V16LinkCommunesActivites.migrate(db);
+    }
+    if (oldVersion < 17) {
+      await V17MultiCommunesActivites.migrate(db);
+    }
+    if (oldVersion < 18) {
+      await V18AddCommunesCreatedAt.migrate(db);
+    }
+    if (oldVersion < 19) {
+      await V19MultiCadreLogique.migrate(db);
+    }
+    if (oldVersion < 20) {
+      await V20MultiZones.migrate(db);
+    }
+    if (oldVersion < 21) {
+      await V21LinkZonesToCommunes.migrate(db);
+    }
+    if (oldVersion < 22) {
+      await V22AppConfigSchema.migrate(db);
+    }
+    if (oldVersion < 23) {
+      await V23PtbaSchema.migrate(db);
+    }
+    if (oldVersion < 24) {
+      await V24FixPtbaSchema.migrate(db);
+    }
+    if (oldVersion < 25) {
+      await V25AddTypeToPlansTravail.migrate(db);
+    }
+    if (oldVersion < 26) {
+      await V26AddMissingColumnsToPlansTravail.migrate(db);
     }
 
     // Les futures migrations seront ajoutées ici

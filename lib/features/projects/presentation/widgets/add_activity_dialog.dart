@@ -1,39 +1,64 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/activite.dart';
 import '../../../../core/models/cadre_logique.dart';
 import '../../../../core/models/zone_intervention.dart';
 import '../../../../core/services/database_service.dart';
 
-class AddActiviteDialog extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/models/commune.dart';
+import '../../../agents/presentation/providers/agent_provider.dart';
+
+class AddActiviteDialog extends ConsumerStatefulWidget {
   final int projectId;
   final Activite? activite;
 
   const AddActiviteDialog({super.key, required this.projectId, this.activite});
 
   @override
-  State<AddActiviteDialog> createState() => _AddActiviteDialogState();
+  ConsumerState<AddActiviteDialog> createState() => _AddActiviteDialogState();
 }
 
-class _AddActiviteDialogState extends State<AddActiviteDialog> {
+class _AddActiviteDialogState extends ConsumerState<AddActiviteDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _codeController;
   late TextEditingController _intituleController;
   late TextEditingController _descriptionController;
   late TextEditingController _budgetController;
   late TextEditingController _beneficiairesController;
+  late TextEditingController _livrablesController;
+  late TextEditingController _indicateursReussiteController;
+  late TextEditingController _risquesController;
+  late TextEditingController _observationsController;
+  late TextEditingController _lieuController;
 
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   PrioriteActivite _priorite = PrioriteActivite.moyenne;
   StatutActivite _statut = StatutActivite.planifiee;
-  int? _selectedCadreLogiqueId;
-  int? _selectedZoneId;
-  int? _selectedResponsableId;
+  List<int> _selectedCadreLogiqueIds = [];
+  List<int> _selectedZoneIds = [];
+  List<int> _selectedCommuneIds = [];
+  List<int> _selectedAgentIds = [];
 
   List<CadreLogique> _cadreLogiqueElements = [];
   List<ZoneIntervention> _zones = [];
+  List<Commune> _communes = [];
   bool _isLoading = false;
+
+  Color _getNiveauColor(NiveauCadreLogique niveau) {
+    switch (niveau) {
+      case NiveauCadreLogique.impact:
+        return Colors.deepPurple;
+      case NiveauCadreLogique.outcome:
+        return Colors.blue;
+      case NiveauCadreLogique.output:
+        return Colors.green;
+      case NiveauCadreLogique.activite:
+        return Colors.orange;
+    }
+  }
 
   @override
   void initState() {
@@ -53,15 +78,21 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
     _beneficiairesController = TextEditingController(
       text: widget.activite?.nombreBeneficiairesCibles.toString(),
     );
+    _livrablesController = TextEditingController(text: widget.activite?.livrables);
+    _indicateursReussiteController = TextEditingController(text: widget.activite?.indicateursReussite);
+    _risquesController = TextEditingController(text: widget.activite?.risques);
+    _observationsController = TextEditingController(text: widget.activite?.observations);
+    _lieuController = TextEditingController(text: widget.activite?.lieu);
 
     if (widget.activite != null) {
       _startDate = widget.activite!.dateDebutPrevue;
       _endDate = widget.activite!.dateFinPrevue;
       _priorite = widget.activite!.priorite;
       _statut = widget.activite!.statut;
-      _selectedCadreLogiqueId = widget.activite!.cadreLogiqueId;
-      _selectedZoneId = widget.activite!.zoneId;
-      _selectedResponsableId = widget.activite!.responsableId;
+      _selectedCadreLogiqueIds = List.from(widget.activite!.cadreLogiqueIds);
+      _selectedZoneIds = List.from(widget.activite!.zoneIds);
+      _selectedCommuneIds = List.from(widget.activite!.communeIds);
+      _selectedAgentIds = List.from(widget.activite!.agentIds);
     }
 
     _loadData();
@@ -72,10 +103,12 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
       final db = DatabaseService.instance;
       final cadre = await db.getCadreLogiqueByProject(widget.projectId);
       final zones = await db.getZonesByProject(widget.projectId);
+      final communes = await db.getCommunes();
 
       setState(() {
         _cadreLogiqueElements = cadre;
         _zones = zones;
+        _communes = communes;
       });
     } catch (e) {
       debugPrint('Error loading data for activity: $e');
@@ -89,6 +122,11 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
     _descriptionController.dispose();
     _budgetController.dispose();
     _beneficiairesController.dispose();
+    _livrablesController.dispose();
+    _indicateursReussiteController.dispose();
+    _risquesController.dispose();
+    _observationsController.dispose();
+    _lieuController.dispose();
     super.dispose();
   }
 
@@ -122,7 +160,7 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
       final activite = Activite(
         id: widget.activite?.id,
         projetId: widget.projectId,
-        cadreLogiqueId: _selectedCadreLogiqueId,
+        cadreLogiqueIds: _selectedCadreLogiqueIds,
         codeActivite: _codeController.text,
         intitule: _intituleController.text,
         description: _descriptionController.text.isEmpty
@@ -135,8 +173,14 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
         budgetEstime: double.tryParse(_budgetController.text) ?? 0.0,
         nombreBeneficiairesCibles:
             int.tryParse(_beneficiairesController.text) ?? 0,
-        zoneId: _selectedZoneId,
-        responsableId: _selectedResponsableId,
+        livrables: _livrablesController.text.isEmpty ? null : _livrablesController.text,
+        indicateursReussite: _indicateursReussiteController.text.isEmpty ? null : _indicateursReussiteController.text,
+        risques: _risquesController.text.isEmpty ? null : _risquesController.text,
+        observations: _observationsController.text.isEmpty ? null : _observationsController.text,
+        lieu: _lieuController.text.isEmpty ? null : _lieuController.text,
+        agentIds: _selectedAgentIds,
+        zoneIds: _selectedZoneIds,
+        communeIds: _selectedCommuneIds,
         createdAt: widget.activite?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -198,41 +242,113 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
                 validator: (v) => v?.isEmpty ?? true ? 'Champ requis' : null,
               ),
               const SizedBox(height: AppSizes.paddingM),
-              DropdownButtonFormField<int>(
-                value: _selectedCadreLogiqueId,
-                decoration: const InputDecoration(
-                  labelText: 'Lien Cadre Logique',
+              // Sélection Multi-Cadre Logique
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Éléments du Cadre Logique',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('Aucun')),
-                  ..._cadreLogiqueElements.map(
-                    (e) => DropdownMenuItem(
-                      value: e.id,
-                      child: Text('${e.code}: ${e.libelle}'),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _selectedCadreLogiqueId = v),
               ),
+              const SizedBox(height: AppSizes.paddingS),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: _cadreLogiqueElements.map((e) {
+                  final isSelected = _selectedCadreLogiqueIds.contains(e.id!);
+                  return FilterChip(
+                    label: Text('${e.code}: ${e.libelle}'),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedCadreLogiqueIds.add(e.id!);
+                        } else {
+                          _selectedCadreLogiqueIds.remove(e.id!);
+                        }
+                      });
+                    },
+                    selectedColor: _getNiveauColor(e.niveau).withValues(alpha: 0.2),
+                    checkmarkColor: _getNiveauColor(e.niveau),
+                  );
+                }).toList(),
+              ),
+              if (_cadreLogiqueElements.isEmpty)
+                const Text(
+                  'Chargement du cadre logique...',
+                  style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                ),
               const SizedBox(height: AppSizes.paddingM),
-              DropdownButtonFormField<int>(
-                value: _selectedZoneId,
-                decoration: const InputDecoration(
-                  labelText: 'Zone Intervenion',
-                ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('Aucune')),
-                  ..._zones.map(
-                    (z) => DropdownMenuItem(
-                      value: z.id,
-                      child: Text(
-                        '${z.communeDistrict ?? z.provinceDepartement ?? z.region}',
-                      ),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _selectedZoneId = v),
+              // Sélection Multi-Communes
+              const Text(
+                'Communes de Rattachament',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: AppSizes.paddingS),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: _communes.where((c) => c.id != null).map((c) {
+                  final isSelected = _selectedCommuneIds.contains(c.id!);
+                  return FilterChip(
+                    label: Text(c.nom),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedCommuneIds.add(c.id!);
+                        } else {
+                          _selectedCommuneIds.remove(c.id!);
+                        }
+                      });
+                    },
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    checkmarkColor: AppColors.primary,
+                  );
+                }).toList(),
+              ),
+              if (_communes.isEmpty)
+                const Text(
+                  'Chargement des communes...',
+                  style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                ),
+              const SizedBox(height: AppSizes.paddingM),
+              const SizedBox(height: AppSizes.paddingM),
+              // Sélection Multi-Zones
+              const Text(
+                'Zones d\'Intervention',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: AppSizes.paddingS),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: _zones.map((z) {
+                  final isSelected = _selectedZoneIds.contains(z.id!);
+                  return FilterChip(
+                    label: Text(
+                      '${z.communeDistrict ?? z.provinceDepartement ?? z.region}',
+                    ),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedZoneIds.add(z.id!);
+                        } else {
+                          _selectedZoneIds.remove(z.id!);
+                        }
+                      });
+                    },
+                    selectedColor: Colors.teal.withOpacity(0.2),
+                    checkmarkColor: Colors.teal,
+                  );
+                }).toList(),
+              ),
+              if (_zones.isEmpty)
+                const Text(
+                  'Chargement des zones...',
+                  style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                ),
               const SizedBox(height: AppSizes.paddingM),
               Row(
                 children: [
@@ -322,7 +438,65 @@ class _AddActiviteDialogState extends State<AddActiviteDialog> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Description'),
-                maxLines: 3,
+                maxLines: 2,
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              TextFormField(
+                controller: _livrablesController,
+                decoration: const InputDecoration(labelText: 'Livrables attendus'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              TextFormField(
+                controller: _indicateursReussiteController,
+                decoration: const InputDecoration(labelText: 'Indicateurs de réussite'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              TextFormField(
+                controller: _risquesController,
+                decoration: const InputDecoration(labelText: 'Risques identifiés'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              TextFormField(
+                controller: _lieuController,
+                decoration: const InputDecoration(labelText: 'Lieu d\'exécution'),
+              ),
+              const SizedBox(height: AppSizes.paddingM),
+              TextFormField(
+                controller: _observationsController,
+                decoration: const InputDecoration(labelText: 'Observations'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: AppSizes.paddingL),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Assigner à (Agents)', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: AppSizes.paddingS),
+              ref.watch(agentsProvider).when(
+                data: (agents) => Wrap(
+                  spacing: 8,
+                  children: agents.map((agent) {
+                    final isSelected = _selectedAgentIds.contains(agent.id);
+                    return FilterChip(
+                      label: Text(agent.nomComplet),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedAgentIds.add(agent.id!);
+                          } else {
+                            _selectedAgentIds.remove(agent.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const Text('Erreur agents'),
               ),
             ],
           ),

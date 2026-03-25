@@ -8,7 +8,10 @@ import '../../../../core/models/ligne_rapport.dart';
 import '../../../../core/models/activite.dart';
 import '../../../../core/services/database_service.dart';
 import '../providers/weekly_report_provider.dart';
-import '../../../projects/presentation/providers/project_provider.dart';
+import '../widgets/activite_selector_dialog.dart';
+import '../../../projects/presentation/providers/project_detail_providers.dart';
+import '../../../../core/models/zone_intervention.dart';
+import '../../../../core/services/export_service.dart';
 
 /// Page de formulaire pour créer ou modifier un rapport hebdomadaire
 class WeeklyReportFormPage extends ConsumerStatefulWidget {
@@ -103,6 +106,12 @@ class _WeeklyReportFormPageState extends ConsumerState<WeeklyReportFormPage> {
       appBar: AppBar(
         title: Text(widget.rapportId == null ? 'Nouveau Rapport' : 'Modifier le Rapport'),
         actions: [
+          if (widget.rapportId != null)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: _exportPdf,
+              tooltip: 'Exporter en PDF',
+            ),
           IconButton(
             icon: const Icon(Icons.save),
             onPressed: _saveRapport,
@@ -284,11 +293,7 @@ class _WeeklyReportFormPageState extends ConsumerState<WeeklyReportFormPage> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    initialValue: ligne.lieu,
-                    decoration: const InputDecoration(labelText: 'Lieu / Localité'),
-                    onChanged: (val) => _lignes[index] = _lignes[index].copyWith(lieu: val),
-                  ),
+                  child: _buildLieuSelector(index),
                 ),
                 const SizedBox(width: AppSizes.paddingM),
                 Expanded(
@@ -355,55 +360,82 @@ class _WeeklyReportFormPageState extends ConsumerState<WeeklyReportFormPage> {
   }
 
   void _showActiviteSelectorDialog(int index) async {
-    // Dans une vraie app, on utiliserait un search dialog
-    final activities = await DatabaseService.instance.getProjects(); // Demo purposes: fetching projects to show something
-    
-    if (!mounted) return;
-
-    showDialog(
+    final act = await showDialog<Activite>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sélectionner une activité'),
-        content: SizedBox(
-          width: 500,
-          child: FutureBuilder<List<Activite>>(
-            future: DatabaseService.instance.getProjects().then((projs) async {
-              // Récupérer les activités du premier projet pour la démo
-              if (projs.isNotEmpty) {
-                // Ici on devrait normalement avoir une méthode getActivities() globale
-                return []; 
-              }
-              return [];
-            }),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              final items = snapshot.data ?? [];
-              if (items.isEmpty) return const Text('Aucune activité disponible dans le PTBA.');
-              
-              return ListView.builder(
-                shrinkWrap: true,
-                itemCount: items.length,
-                itemBuilder: (context, i) {
-                  final act = items[i];
-                  return ListTile(
-                    title: Text(act.intitule),
-                    subtitle: Text(act.codeActivite),
-                    onTap: () {
-                      setState(() {
-                        _lignes[index] = _lignes[index].copyWith(
-                          activiteId: act.id,
-                          description: act.intitule,
-                        );
-                      });
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ),
+      builder: (context) => const ActiviteSelectorDialog(),
+    );
+
+    if (act != null) {
+      setState(() {
+        _lignes[index] = _lignes[index].copyWith(
+          activiteId: act.id,
+          description: act.intitule,
+          lieu: act.lieu, // Suggest default location if available
+        );
+      });
+    }
+  }
+
+  Widget _buildLieuSelector(int index) {
+    final ligne = _lignes[index];
+
+    return TextFormField(
+      key: ValueKey('lieu_${index}_${ligne.activiteId}'),
+      initialValue: ligne.lieu,
+      decoration: InputDecoration(
+        labelText: 'Lieu / Localité',
+        suffixIcon: ligne.activiteId != null ? _buildZoneSuggestionMenu(index) : null,
       ),
+      onChanged: (val) => _lignes[index] = _lignes[index].copyWith(lieu: val),
+    );
+  }
+
+  Widget? _buildZoneSuggestionMenu(int index) {
+    final ligne = _lignes[index];
+    if (ligne.activiteId == null) return null;
+
+    final activitesAsync = ref.watch(allActivitesProvider);
+    return activitesAsync.when(
+      data: (activites) {
+        final activity = activites.firstWhere((a) => a.id == ligne.activiteId, orElse: () => activites.first);
+        final zonesIds = activity.zoneIds;
+
+        if (zonesIds.isEmpty) return null;
+
+        return PopupMenuButton<String>(
+          icon: const Icon(Icons.location_city, size: 20, color: AppColors.primary),
+          tooltip: 'Zones liées à l\'activité',
+          onSelected: (val) {
+            setState(() {
+              _lignes[index] = _lignes[index].copyWith(lieu: val);
+            });
+          },
+          itemBuilder: (context) {
+            return [
+              const PopupMenuItem(
+                enabled: false,
+                child: Text('Sélectionner une zone associée :', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+              ...zonesIds.map((id) {
+                return PopupMenuItem<String>(
+                  value: 'Zone $id',
+                  child: FutureBuilder<ZoneIntervention?>(
+                    future: DatabaseService.instance.getZoneById(id),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return Text(snapshot.data!.villageQuartier ?? 'Zone $id');
+                      }
+                      return Text('Zone $id...');
+                    },
+                  ),
+                );
+              }),
+            ];
+          },
+        );
+      },
+      loading: () => const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+      error: (_, __) => null,
     );
   }
 
@@ -462,8 +494,31 @@ class _WeeklyReportFormPageState extends ConsumerState<WeeklyReportFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (widget.rapportId == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final data = await ref.read(weeklyReportDetailProvider(widget.rapportId!).future);
+      if (data != null) {
+        // Dans une vraie app, on récupérerait le nom de l'agent depuis l'auth
+        await ExportService.instance.exportWeeklyReportToPdf(
+          rapport: data.rapport,
+          lignes: data.lignes,
+          agentNom: 'Agent Administratif', 
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de l\'export : $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }

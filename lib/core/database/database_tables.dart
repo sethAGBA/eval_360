@@ -9,6 +9,7 @@ class DatabaseTables {
   static const String bailleurs = 'bailleurs_partenaires';
   static const String projetBailleurs = 'projet_bailleurs';
   static const String projetZones = 'projet_zones';
+  static const String projetPartenaires = 'projet_partenaires';
   static const String zones = 'zones_intervention';
   static const String auditLogs = 'audit_logs';
 
@@ -17,6 +18,9 @@ class DatabaseTables {
 
   // Cadre Logique & Indicateurs
   static const String cadreLogique = 'cadre_logique';
+  static const String activiteCommunes = 'activite_communes';
+  static const String activiteCadreLogique = 'activite_cadre_logique';
+  static const String activiteZones = 'activite_zones';
   static const String indicateurs = 'indicateurs';
   static const String ciblesIntermediaires = 'cibles_intermediaires';
   static const String donneesCollecte = 'donnees_collecte';
@@ -49,6 +53,9 @@ class DatabaseTables {
   static const String rapportsStage = 'rapports_stage';
   static const String communesPdc = 'communes_pdc';
   static const String partenaniresPtf = 'partenaires_ptf';
+  static const String tacheAssignations = 'tache_assignations';
+  static const String activiteAssignations = 'activite_assignations';
+  static const String appConfig = 'app_config';
 }
 
 /// Colonnes de la table utilisateurs_acces
@@ -56,6 +63,7 @@ class UtilisateursColumns {
   UtilisateursColumns._();
 
   static const String id = 'id';
+  static const String matricule = 'matricule';
   static const String username = 'username';
   static const String email = 'email';
   static const String passwordHash = 'password_hash';
@@ -67,6 +75,7 @@ class UtilisateursColumns {
   static const String actif = 'actif';
   static const String derniereConnexion = 'derniere_connexion';
   static const String twoFactorEnabled = 'two_factor_enabled';
+  static const String twoFactorSecret = 'two_factor_secret';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 }
@@ -121,6 +130,7 @@ class ZonesColumns {
   static const String latitude = 'latitude';
   static const String longitude = 'longitude';
   static const String populationTotale = 'population_totale';
+  static const String communeId = 'commune_id';
 }
 
 /// Colonnes de la table rapports_hebdo
@@ -161,6 +171,21 @@ class LignesRapportColumns {
   static const String prochainesEtapes = 'prochaines_etapes';
 }
 
+/// Colonnes de la table jalons_livrables
+class JalonsLivrablesColumns {
+  JalonsLivrablesColumns._();
+
+  static const String id = 'id';
+  static const String activiteId = 'activite_id';
+  static const String titre = 'titre';
+  static const String description = 'description';
+  static const String dateEcheance = 'date_echeance';
+  static const String statut = 'statut';
+  static const String lienDocument = 'lien_document';
+  static const String createdAt = 'created_at';
+  static const String updatedAt = 'updated_at';
+}
+
 /// Colonnes de la table taches
 class TachesColumns {
   TachesColumns._();
@@ -172,8 +197,82 @@ class TachesColumns {
   static const String statut = 'statut';
   static const String dateEcheance = 'date_echeance';
   static const String pourcentageAvancement = 'pourcentage_avancement';
-  static const String agentId = 'agent_id';
+  static const String agentId = 'agent_id'; // Note: maintained for backward compat or primary resp
   static const String activiteId = 'activite_id';
+  static const String createdAt = 'created_at';
+  static const String updatedAt = 'updated_at';
+}
+
+/// Colonnes de la table activites (Enrichies V14)
+class ActivitesColumns {
+  ActivitesColumns._();
+
+  static const String id = 'id';
+  static const String projetId = 'projet_id';
+  static const String planTravailId = 'plan_travail_id';
+  static const String cadreLogiqueId = 'cadre_logique_id';
+  static const String codeActivite = 'code_activite';
+  static const String intitule = 'intitule';
+  static const String description = 'description';
+  static const String typeActivite = 'type_activite';
+  static const String priorite = 'priorite';
+  static const String dateDebutPrevue = 'date_debut_prevue';
+  static const String dateFinPrevue = 'date_fin_prevue';
+  static const String dateDebutReelle = 'date_debut_reelle';
+  static const String dateFinReelle = 'date_fin_reelle';
+  static const String responsableId = 'responsable_id';
+  static const String zoneId = 'zone_id';
+  static const String communeId = 'commune_id';
+  static const String statut = 'statut';
+  static const String pourcentageAvancement = 'pourcentage_avancement';
+  static const String budgetEstime = 'budget_estime';
+  static const String budgetEtat = 'budget_etat'; // Nouveau (PTBA)
+  static const String budgetPtf = 'budget_ptf';   // Nouveau (PTBA)
+  static const String budgetEngage = 'budget_engage';
+  static const String budgetRealise = 'budget_realise';
+  static const String nombreBeneficiairesCibles = 'nombre_beneficiaires_cibles';
+  static const String nombreBeneficiairesAtteints = 'nombre_beneficiaires_atteints';
+  static const String livrables = 'livrables'; // Deprecated in favor of JalonsLivrables
+  static const String indicateursReussite = 'indicateurs_reussite';
+  static const String risques = 'risques';
+  static const String observations = 'observations';
+  static const String lieu = 'lieu';
+  // Mois planifiés (PTBA)
+  static const String mois1 = 'mois_1';
+  static const String mois2 = 'mois_2';
+  static const String mois3 = 'mois_3';
+  static const String mois4 = 'mois_4';
+  static const String mois5 = 'mois_5';
+  static const String mois6 = 'mois_6';
+  static const String mois7 = 'mois_7';
+  static const String mois8 = 'mois_8';
+  static const String mois9 = 'mois_9';
+  static const String mois10 = 'mois_10';
+  static const String mois11 = 'mois_11';
+  static const String mois12 = 'mois_12';
+  
+  static const String createdAt = 'created_at';
+  static const String updatedAt = 'updated_at';
+}
+
+/// Colonnes de la table plans_travail (PTBA)
+class PlansTravailColumns {
+  PlansTravailColumns._();
+
+  static const String id = 'id';
+  static const String projetId = 'projet_id';
+  static const String type = 'type';
+  static const String annee = 'annee';
+  static const String trimestre = 'trimestre';
+  static const String mois = 'mois';
+  static const String dateDebut = 'date_debut';
+  static const String dateFin = 'date_fin';
+  static const String statut = 'statut';
+  static const String valideParId = 'valide_par_id';
+  static const String dateValidation = 'date_validation';
+  static const String budgetTotal = 'budget_total';
+  static const String budgetEtat = 'budget_etat';
+  static const String budgetPtf = 'budget_ptf';
   static const String createdAt = 'created_at';
   static const String updatedAt = 'updated_at';
 }

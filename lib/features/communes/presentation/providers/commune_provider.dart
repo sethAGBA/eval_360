@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../../../../core/models/commune.dart';
+import '../../../../core/models/zone_intervention.dart';
 import '../../../../core/services/database_service.dart';
 
 /// Provider pour la liste des communes
@@ -31,4 +32,9 @@ final pdcStatsProvider = Provider<AsyncValue<Map<String, double>>>((ref) {
     final sum = communes.fold<double>(0, (prev, element) => prev + element.tauxAvancementPdc);
     return {'moyenne': sum / communes.length};
   });
+});
+
+/// Provider pour les zones d'une commune spécifique
+final zonesByCommuneProvider = FutureProvider.family<List<ZoneIntervention>, int>((ref, communeId) async {
+  return await DatabaseService.instance.getZonesByCommune(communeId);
 });

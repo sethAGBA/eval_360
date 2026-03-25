@@ -79,6 +79,16 @@ class _CustomSidebarState extends State<CustomSidebar> {
                     isActive: currentPath.startsWith('/projects'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
+
+                  // Planification / PTBA
+                  _buildMenuItem(
+                    context,
+                    icon: Icons.edit_calendar_rounded,
+                    label: 'Planification PTBA',
+                    path: '/ptba',
+                    isActive: currentPath.startsWith('/ptba'),
+                  ),
+                  const SizedBox(height: AppSizes.paddingXS),
                   /*
                   _buildMenuItem(
                     context,
@@ -220,24 +230,24 @@ class _CustomSidebarState extends State<CustomSidebar> {
                   _buildMenuItem(
                     context,
                     icon: Icons.history_edu_rounded,
-                    label: 'Saisie de TdR',
-                    path: '/processus/tdr',
+                    label: 'TdR',
+                    path: '/processus/tdr/list',
                     isActive: currentPath.startsWith('/processus/tdr'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
                   _buildMenuItem(
                     context,
                     icon: Icons.commute_rounded,
-                    label: 'Ordre de Mission',
-                    path: '/processus/ordre-mission',
-                    isActive: currentPath.startsWith('/processus/ordre-mission'),
+                    label: 'Ordres de Mission',
+                    path: '/processus/ordres-mission/list',
+                    isActive: currentPath.startsWith('/processus/ordre'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),
                   _buildMenuItem(
                     context,
                     icon: Icons.school_rounded,
-                    label: 'Rapport de Stage',
-                    path: '/processus/rapport-stage',
+                    label: 'Rapports de Stage',
+                    path: '/processus/rapports-stage/list',
                     isActive: currentPath.startsWith('/processus/rapport-stage'),
                   ),
                   const SizedBox(height: AppSizes.paddingXS),

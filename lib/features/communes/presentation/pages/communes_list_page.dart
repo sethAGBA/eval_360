@@ -4,6 +4,9 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/models/commune.dart';
 import '../providers/commune_provider.dart';
+import 'commune_detail_page.dart';
+import '../widgets/update_pdc_dialog.dart';
+import '../widgets/add_commune_dialog.dart';
 
 class CommunesListPage extends ConsumerWidget {
   const CommunesListPage({super.key});
@@ -26,13 +29,26 @@ class CommunesListPage extends ConsumerWidget {
           const SizedBox(width: AppSizes.paddingL),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await showDialog<bool>(
+            context: context,
+            builder: (context) => const AddCommuneDialog(),
+          );
+          if (result == true) {
+            ref.invalidate(communesProvider);
+          }
+        },
+        child: const Icon(Icons.add),
+        tooltip: 'Ajouter une commune',
+      ),
       body: Column(
         children: [
           _buildStatsHeader(context, statsAsync),
           _buildFilterBar(context, ref, regionFilter),
           Expanded(
             child: communesAsync.when(
-              data: (communes) => _buildCommunesList(context, communes),
+              data: (communes) => _buildCommunesList(context, ref, communes),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Center(child: Text('Erreur: $err')),
             ),
@@ -93,7 +109,7 @@ class CommunesListPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildCommunesList(BuildContext context, List<Commune> communes) {
+  Widget _buildCommunesList(BuildContext context, WidgetRef ref, List<Commune> communes) {
     if (communes.isEmpty) {
       return const Center(child: Text('Aucune commune trouvée.'));
     }
@@ -108,6 +124,11 @@ class CommunesListPage extends ConsumerWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusM)),
           child: ListTile(
             contentPadding: const EdgeInsets.all(AppSizes.paddingM),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => CommuneDetailPage(commune: commune)),
+              );
+            },
             title: Text(commune.nom, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,11 +152,27 @@ class CommunesListPage extends ConsumerWidget {
                 ),
               ],
             ),
-            trailing: IconButton(
-              icon: const Icon(Icons.edit_note),
-              onPressed: () {
-                // TODO: Dialogue pour mettre à jour le taux
+            trailing: PopupMenuButton<String>(
+              onSelected: (val) async {
+                if (val == 'progress') {
+                  final result = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => UpdatePdcDialog(commune: commune),
+                  );
+                  if (result == true) ref.invalidate(communesProvider);
+                } else if (val == 'edit') {
+                  final result = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AddCommuneDialog(commune: commune),
+                  );
+                  if (result == true) ref.invalidate(communesProvider);
+                }
               },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'progress', child: Text('Mettre à jour avancement')),
+                const PopupMenuItem(value: 'edit', child: Text('Modifier les informations')),
+              ],
+              icon: const Icon(Icons.more_vert),
             ),
           ),
         );

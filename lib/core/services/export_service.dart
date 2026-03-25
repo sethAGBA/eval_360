@@ -1,21 +1,24 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:excel/excel.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import 'package:open_file_plus/open_file_plus.dart';
+
 import '../models/projet.dart';
 import '../models/depense.dart';
-import '../services/database_service.dart';
+import '../models/app_config.dart';
 import '../models/activite.dart';
 import '../models/indicateur.dart';
 import '../models/rapport_hebdo.dart';
 import '../models/ligne_rapport.dart';
 import '../models/rapport_mensuel.dart';
 import '../models/synthese_axe.dart';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
-import 'package:open_file_plus/open_file_plus.dart';
+import '../services/database_service.dart';
+
 
 class ExportService {
   static final ExportService instance = ExportService._();
@@ -27,6 +30,38 @@ class ExportService {
     decimalDigits: 0,
     locale: 'fr_FR',
   );
+
+  // ============================================================================
+  // HELPER: Sauvegarde et ouverture sécurisées (évite les erreurs shell macOS)
+  // ============================================================================
+
+  /// Sauvegarde le PDF dans un dossier choisi par l'utilisateur et l'ouvre.
+  /// Passe par un fichier temporaire pour éviter les problèmes avec
+  /// les apostrophes et caractères spéciaux dans les chemins macOS/Windows.
+  Future<void> _saveAndOpen(List<int> bytes, String fileName) async {
+    // 1. Choisir le dossier de destination
+    final String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choisir le dossier d\'enregistrement',
+    );
+    if (selectedDirectory == null) return;
+
+    // 2. Sanitiser le nom de fichier (pas le chemin)
+    final safeFileName = fileName.replaceAll(RegExp('[\\\\/:*?"\'<>|]'), '_');
+
+    // 3. Écrire d'abord dans un répertoire temporaire (chemin garanti sans
+    //    caractères spéciaux) pour pouvoir l'ouvrir via OpenFile
+    final tempDir = Directory.systemTemp;
+    final tempPath = '${tempDir.path}/$safeFileName';
+    final tempFile = File(tempPath);
+    await tempFile.writeAsBytes(bytes);
+
+    // 4. Ouvrir depuis le chemin temporaire (pas de problème de shell)
+    await OpenFile.open(tempPath);
+
+    // 5. Copier vers la destination choisie par l'utilisateur
+    final destPath = '$selectedDirectory/$safeFileName';
+    await tempFile.copy(destPath);
+  }
 
   Future<void> exportProjectReport({
     required Projet projet,
@@ -57,21 +92,9 @@ class ExportService {
       ),
     );
     final bytes = await pdf.save();
-    
-    String fileName = 'Rapport_${projet.codeProjet}_${projet.titre}.pdf';
-    // Remove characters that might be invalid in file names
-    fileName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
 
-    final String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Choisir le dossier d\'enregistrement',
-    );
-
-    if (selectedDirectory != null) {
-      final String fullPath = '$selectedDirectory/$fileName';
-      final file = File(fullPath);
-      await file.writeAsBytes(bytes);
-      await OpenFile.open(fullPath);
-    }
+    final String fileName = 'Rapport_${projet.codeProjet}_${projet.titre}.pdf';
+    await _saveAndOpen(bytes, fileName);
   }
 
   pw.Widget _buildHeader(pw.Context context, Projet projet) {
@@ -304,6 +327,17 @@ class ExportService {
     required List<Projet> projets,
     required DashboardStats stats,
   }) async {
+    // Charger la configuration et le logo
+    final config = await DatabaseService.instance.getAppConfig();
+    pw.MemoryImage? logoImage;
+    if (config.logoPath != null && File(config.logoPath!).existsSync()) {
+      try {
+        logoImage = pw.MemoryImage(File(config.logoPath!).readAsBytesSync());
+      } catch (e) {
+        // debugPrint('❌ Erreur chargement logo PDF: $e'); // Assuming debugPrint is available
+      }
+    }
+
     final pdf = pw.Document();
     final font = await PdfGoogleFonts.robotoRegular();
     final fontBold = await PdfGoogleFonts.robotoBold();
@@ -311,9 +345,9 @@ class ExportService {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(30),
         theme: pw.ThemeData.withFont(base: font, bold: fontBold),
-        header: (context) => _buildGlobalHeader(context),
+        header: (context) => _buildGlobalHeader(context, logoImage),
         footer: (context) => _buildFooter(context),
         build: (context) => [
           _buildGlobalStats(stats),
@@ -337,7 +371,7 @@ class ExportService {
     }
   }
 
-  pw.Widget _buildGlobalHeader(pw.Context context) {
+  pw.Widget _buildGlobalHeader(pw.Context context, [pw.MemoryImage? logoImage]) {
     return pw.Column(
       children: [
         pw.Text(
@@ -478,21 +512,43 @@ class ExportService {
     required List<LigneRapport> lignes,
     String? agentNom,
   }) async {
+    // Charger la configuration et le logo
+    final config = await DatabaseService.instance.getAppConfig();
+    pw.MemoryImage? logoImage;
+    if (config.logoPath != null && File(config.logoPath!).existsSync()) {
+      try {
+        logoImage = pw.MemoryImage(File(config.logoPath!).readAsBytesSync());
+      } catch (e) {
+        debugPrint('❌ Erreur chargement logo PDF: $e');
+      }
+    }
+
     final pdf = pw.Document();
     final font = await PdfGoogleFonts.robotoRegular();
     final fontBold = await PdfGoogleFonts.robotoBold();
+
+    // Fetch activity details to show codes
+    final List<String?> activityCodes = [];
+    for (final ligne in lignes) {
+      if (ligne.activiteId != null) {
+        final act = await DatabaseService.instance.getActiviteById(ligne.activiteId!);
+        activityCodes.add(act?.codeActivite);
+      } else {
+        activityCodes.add(null);
+      }
+    }
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         theme: pw.ThemeData.withFont(base: font, bold: fontBold),
-        header: (context) => _buildWeeklyHeader(context, rapport),
+        header: (context) => _buildWeeklyHeader(context, rapport, config, logoImage),
         footer: (context) => _buildFooter(context),
         build: (context) => [
           _buildWeeklyReportInfo(rapport, agentNom),
           pw.SizedBox(height: 20),
-          _buildWeeklyActivitiesTable(lignes),
+          _buildWeeklyActivitiesTable(lignes, activityCodes),
           pw.SizedBox(height: 30),
           _buildSignatureSection(rapport),
         ],
@@ -500,7 +556,10 @@ class ExportService {
     );
 
     final bytes = await pdf.save();
+    
+    // Sanitize file name for shell safety
     String fileName = 'Rapport_Hebdo_S${rapport.semaineNumero}_${rapport.annee}.pdf';
+    fileName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
 
     final String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Choisir le dossier d\'enregistrement',
@@ -510,47 +569,15 @@ class ExportService {
       final String fullPath = '$selectedDirectory/$fileName';
       final file = File(fullPath);
       await file.writeAsBytes(bytes);
+      
+      // Use quotes to handle paths with spaces if necessary, 
+      // though OpenFile usually handles this.
       await OpenFile.open(fullPath);
     }
   }
 
-  pw.Widget _buildWeeklyHeader(pw.Context context, RapportHebdo rapport) {
-    return pw.Column(
-      children: [
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'CPDSE-CT / MDDL',
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.blue800,
-                  ),
-                ),
-                pw.Text(
-                  'Logiciel de Suivi-Évaluation',
-                  style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-                ),
-              ],
-            ),
-            pw.Text(
-              'RAPPORT HEBDOMADAIRE',
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.blue900,
-              ),
-            ),
-          ],
-        ),
-        pw.Divider(thickness: 2, color: PdfColors.blue900),
-        pw.SizedBox(height: 10),
-      ],
-    );
+  pw.Widget _buildWeeklyHeader(pw.Context context, RapportHebdo rapport, AppConfig config, pw.MemoryImage? logoImage) {
+    return _buildPdfHeader('RAPPORT HEBDOMADAIRE', config, logoImage);
   }
 
   pw.Widget _buildWeeklyReportInfo(RapportHebdo rapport, String? agentNom) {
@@ -598,24 +625,28 @@ class ExportService {
     );
   }
 
-  pw.Widget _buildWeeklyActivitiesTable(List<LigneRapport> lignes) {
+  pw.Widget _buildWeeklyActivitiesTable(List<LigneRapport> lignes, List<String?> activityCodes) {
     return pw.Table.fromTextArray(
       headers: [
+        'Code PTBA',
         'Activités / Tâches',
         'Lieu',
         'Dates',
         'Statut',
         'Résultats / Observations'
       ],
-      data: lignes.map((l) {
+      data: List.generate(lignes.length, (index) {
+        final l = lignes[index];
+        final code = activityCodes[index] ?? '-';
         return [
+          code,
           l.description,
           l.lieu ?? '-',
           '${_dateFormat.format(l.dateDebut)}\n${_dateFormat.format(l.dateFin)}',
           l.statutActivite,
           l.resultatsAtteints ?? '-',
         ];
-      }).toList(),
+      }),
       headerStyle: pw.TextStyle(
         fontWeight: pw.FontWeight.bold,
         color: PdfColors.white,
@@ -625,18 +656,20 @@ class ExportService {
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellHeight: 40,
       columnWidths: {
-        0: const pw.FlexColumnWidth(3),
-        1: const pw.FlexColumnWidth(1.5),
+        0: const pw.FlexColumnWidth(1),
+        1: const pw.FlexColumnWidth(3),
         2: const pw.FlexColumnWidth(1.5),
         3: const pw.FlexColumnWidth(1.5),
-        4: const pw.FlexColumnWidth(3),
+        4: const pw.FlexColumnWidth(1.5),
+        5: const pw.FlexColumnWidth(3),
       },
       cellAlignments: {
-        0: pw.Alignment.centerLeft,
-        1: pw.Alignment.center,
+        0: pw.Alignment.center,
+        1: pw.Alignment.centerLeft,
         2: pw.Alignment.center,
         3: pw.Alignment.center,
-        4: pw.Alignment.centerLeft,
+        4: pw.Alignment.center,
+        5: pw.Alignment.centerLeft,
       },
     );
   }
@@ -674,51 +707,76 @@ class ExportService {
   }
 
   /// Exporter un rapport mensuel au format PDF
-  Future<Uint8List> exportMonthlyReportToPdf(
-    RapportMensuel rapport,
-    List<SyntheseAxe> syntheses,
-  ) async {
+  Future<void> exportMonthlyReportToPdf({
+    required RapportMensuel rapport,
+    required List<SyntheseAxe> syntheses,
+  }) async {
     final pdf = pw.Document();
+    final font = await PdfGoogleFonts.robotoRegular();
+    final fontBold = await PdfGoogleFonts.robotoBold();
+
+    // Charger la configuration et le logo
+    final config = await DatabaseService.instance.getAppConfig();
+    pw.MemoryImage? logoImage;
+    if (config.logoPath != null && File(config.logoPath!).existsSync()) {
+      try {
+        logoImage = pw.MemoryImage(File(config.logoPath!).readAsBytesSync());
+      } catch (e) {
+        debugPrint('❌ Erreur chargement logo PDF: $e');
+      }
+    }
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
-        build: (pw.Context context) {
-          return [
-            _buildPdfHeader('RAPPORT MENSUEL D\'ACTIVITÉS'),
-            pw.SizedBox(height: 20),
-            _buildMonthlyInfoSection(rapport),
-            pw.SizedBox(height: 24),
-            pw.Text(
-              'SYNTHÈSE DE PERFORMANCE PAR AXE STRATÉGIQUE',
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.blue900,
-              ),
+        theme: pw.ThemeData.withFont(base: font, bold: fontBold),
+        header: (context) => _buildPdfHeader('RAPPORT MENSUEL D\'ACTIVITÉS', config, logoImage),
+        footer: (context) => _buildFooter(context),
+        build: (context) => [
+          _buildMonthlyInfoSection(rapport),
+          pw.SizedBox(height: 24),
+          pw.Text(
+            'SYNTHÈSE DE PERFORMANCE PAR AXE STRATÉGIQUE',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue900,
             ),
-            pw.SizedBox(height: 12),
-            _buildSyntheseAxesTable(syntheses),
-            pw.SizedBox(height: 24),
-            pw.Text(
-              'RECOMMANDATIONS ET PERSPECTIVES',
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-              ),
+          ),
+          pw.SizedBox(height: 12),
+          _buildSyntheseAxesTable(syntheses),
+          pw.SizedBox(height: 24),
+          pw.Text(
+            'RECOMMANDATIONS ET PERSPECTIVES',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
             ),
-            pw.SizedBox(height: 8),
-            pw.Bullet(text: 'Renforcement du suivi de proximité pour l\'axe Infrastructures.'),
-            pw.Bullet(text: 'Accélération des décaissements pour les activités en cours.'),
-            pw.SizedBox(height: 40),
-            _buildMonthlySignatureSection(rapport),
-          ];
-        },
+          ),
+          pw.SizedBox(height: 8),
+          pw.Bullet(text: 'Renforcement du suivi de proximité pour l\'axe Infrastructures.'),
+          pw.Bullet(text: 'Accélération des décaissements pour les activités en cours.'),
+          pw.SizedBox(height: 40),
+          _buildMonthlySignatureSection(rapport),
+        ],
       ),
     );
 
-    return pdf.save();
+    final bytes = await pdf.save();
+    String fileName = 'Rapport_Mensuel_${rapport.moisNom}_${rapport.annee}.pdf';
+    fileName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
+    final String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choisir le dossier d\'enregistrement',
+    );
+
+    if (selectedDirectory != null) {
+      final String fullPath = '$selectedDirectory/$fileName';
+      final file = File(fullPath);
+      await file.writeAsBytes(bytes);
+      await OpenFile.open(fullPath);
+    }
   }
 
   pw.Widget _buildMonthlyInfoSection(RapportMensuel rapport) {
@@ -794,40 +852,73 @@ class ExportService {
     );
   }
 
-  pw.Widget _buildPdfHeader(String title) {
+  pw.Widget _buildPdfHeader(String title, AppConfig config, pw.MemoryImage? logoImage) {
     return pw.Column(
       children: [
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
+            // Bloc de gauche (Logo + Info)
+            pw.Row(
+              children: [
+                if (logoImage != null)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(right: 10),
+                    child: pw.Container(
+                      width: 50,
+                      height: 50,
+                      child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      config.republique,
+                      style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      config.sigle,
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue800,
+                      ),
+                    ),
+                    pw.Text(
+                      config.entite,
+                      style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
                 pw.Text(
-                  'CPDSE-CT / MDDL',
+                  title,
                   style: pw.TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.blue800,
+                    color: PdfColors.blue900,
                   ),
                 ),
                 pw.Text(
-                  'Logiciel de Suivi-Évaluation',
+                  'Logiciel Eval360',
                   style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
                 ),
               ],
             ),
-            pw.Text(
-              title,
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.blue900,
-              ),
-            ),
           ],
         ),
-        pw.Divider(thickness: 2, color: PdfColors.blue900),
+        pw.SizedBox(height: 5),
+        pw.Divider(thickness: 1.5, color: PdfColors.blue900),
         pw.SizedBox(height: 10),
       ],
     );

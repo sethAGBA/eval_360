@@ -7,6 +7,8 @@ import '../../../../core/services/database_service.dart';
 import '../../../../core/models/beneficiaire.dart';
 import '../providers/project_provider.dart';
 import '../providers/bailleur_provider.dart';
+import '../../../partenaires/presentation/providers/partenaire_provider.dart';
+import '../../../../core/models/partenaire.dart';
 import '../providers/zone_provider.dart';
 
 /// Page de formulaire de création ou d'édition de projet (Wizard)
@@ -39,6 +41,7 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
   DateTime? _dateFin;
   ProjetStatut _statut = ProjetStatut.pipeline;
   List<int> _selectedBailleurIds = [];
+  List<int> _selectedPartenaireIds = [];
   List<int> _selectedZoneIds = [];
   List<Beneficiaire> _beneficiaires = [];
 
@@ -68,6 +71,10 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
         // Charger les bailleurs
         final bailleurs = await db.getBailleursByProject(widget.projectId!);
         _selectedBailleurIds = bailleurs.map((b) => b.id!).toList();
+
+        // Charger les partenaires
+        final partenaires = await db.getPartenairesByProject(widget.projectId!);
+        _selectedPartenaireIds = partenaires.map((p) => p.id!).toList();
 
         // Charger les zones
         final zones = await db.getZonesByProject(widget.projectId!);
@@ -378,32 +385,70 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
           const SizedBox(height: AppSizes.paddingL),
           bailleursAsync.when(
             data: (bailleurs) {
-              if (bailleurs.isEmpty) {
-                return const Center(child: Text('Aucun bailleur trouvé.'));
-              }
+              if (bailleurs.isEmpty) return const SizedBox.shrink();
               return Column(
-                children: bailleurs.map((bailleur) {
-                  final isSelected = _selectedBailleurIds.contains(bailleur.id);
-                  return CheckboxListTile(
-                    title: Text(bailleur.nom),
-                    subtitle: Text(bailleur.type.label),
-                    value: isSelected,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedBailleurIds.add(bailleur.id!);
-                        } else {
-                          _selectedBailleurIds.remove(bailleur.id);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Bailleurs de Fonds', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...bailleurs.map((bailleur) {
+                    final isSelected = _selectedBailleurIds.contains(bailleur.id);
+                    return CheckboxListTile(
+                      title: Text(bailleur.nom),
+                      subtitle: Text(bailleur.type.label),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedBailleurIds.add(bailleur.id!);
+                          } else {
+                            _selectedBailleurIds.remove(bailleur.id);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                  const Divider(),
+                ],
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(child: Text('Erreur: $err')),
+            loading: () => const LinearProgressIndicator(),
+            error: (err, stack) => Text('Erreur Bailleurs: $err'),
           ),
+          
+          ref.watch(partenairesProvider(true)).when(
+            data: (partenaires) {
+              if (partenaires.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Partenaires (PTF)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...partenaires.map((p) {
+                    final isSelected = _selectedPartenaireIds.contains(p.id);
+                    return CheckboxListTile(
+                      title: Text(p.nom),
+                      subtitle: Text(p.type.label),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            _selectedPartenaireIds.add(p.id!);
+                          } else {
+                            _selectedPartenaireIds.remove(p.id);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              );
+            },
+            loading: () => const LinearProgressIndicator(),
+            error: (err, stack) => Text('Erreur Partenaires: $err'),
+          ),
+          
+          if ((ref.watch(bailleursProvider).asData?.value.isEmpty ?? true) && 
+              (ref.watch(partenairesProvider(true)).asData?.value.isEmpty ?? true))
+            const Center(child: Text('Aucun bailleur ou partenaire trouvé.')),
         ],
       ),
     );
@@ -611,6 +656,9 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
         // Mettre à jour les bailleurs
         await db.updateProjectBailleurs(projectId, _selectedBailleurIds);
 
+        // Mettre à jour les partenaires
+        await db.updateProjectPartenaires(projectId, _selectedPartenaireIds);
+
         // Mettre à jour les zones
         await db.updateProjectZones(projectId, _selectedZoneIds);
 
@@ -648,6 +696,15 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
           );
         }
 
+        // 2.b Lier les partenaires
+        for (final partenaireId in _selectedPartenaireIds) {
+          await db.linkPartenaireToProject(
+            projetId: projectId,
+            partenaireId: partenaireId,
+            role: 'Partenaire technique',
+          );
+        }
+
         // 3. Lier les zones
         for (final zoneId in _selectedZoneIds) {
           await db.linkZoneToProject(projectId: projectId, zoneId: zoneId);
@@ -664,6 +721,8 @@ class _ProjectFormPageState extends ConsumerState<ProjectFormPage> {
       if (widget.projectId != null) {
         ref.invalidate(selectedProjectProvider);
         ref.invalidate(projectStatsProvider(widget.projectId!));
+        ref.invalidate(projectBailleursProvider(widget.projectId!));
+        ref.invalidate(projectPartenairesProvider(widget.projectId!));
       }
 
       if (mounted) {

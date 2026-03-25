@@ -43,7 +43,7 @@ class Tache {
   final TacheStatut statut;
   final DateTime? dateEcheance;
   final double pourcentageAvancement;
-  final int agentId;
+  final List<int> agentIds;
   final int? activiteId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -56,7 +56,7 @@ class Tache {
     this.statut = TacheStatut.aFaire,
     this.dateEcheance,
     this.pourcentageAvancement = 0.0,
-    required this.agentId,
+    this.agentIds = const [],
     this.activiteId,
     this.createdAt,
     this.updatedAt,
@@ -73,7 +73,9 @@ class Tache {
           ? DateTime.parse(map[TachesColumns.dateEcheance]) 
           : null,
       pourcentageAvancement: (map[TachesColumns.pourcentageAvancement] as num?)?.toDouble() ?? 0.0,
-      agentId: map[TachesColumns.agentId],
+      agentIds: map['agent_ids'] != null 
+          ? List<int>.from(map['agent_ids']) 
+          : (map[TachesColumns.agentId] != null ? [map[TachesColumns.agentId] as int] : []),
       activiteId: map[TachesColumns.activiteId],
       createdAt: map[TachesColumns.createdAt] != null 
           ? DateTime.parse(map[TachesColumns.createdAt]) 
@@ -93,9 +95,8 @@ class Tache {
       TachesColumns.statut: statut.value,
       TachesColumns.dateEcheance: dateEcheance?.toIso8601String(),
       TachesColumns.pourcentageAvancement: pourcentageAvancement,
-      TachesColumns.agentId: agentId,
       TachesColumns.activiteId: activiteId,
-      // createdAt and updatedAt are usually handled by DB or explicit update
+      // agentIds handles via join table in DatabaseService
     };
   }
 
@@ -107,7 +108,7 @@ class Tache {
     TacheStatut? statut,
     DateTime? dateEcheance,
     double? pourcentageAvancement,
-    int? agentId,
+    List<int>? agentIds,
     int? activiteId,
   }) {
     return Tache(
@@ -118,7 +119,7 @@ class Tache {
       statut: statut ?? this.statut,
       dateEcheance: dateEcheance ?? this.dateEcheance,
       pourcentageAvancement: pourcentageAvancement ?? this.pourcentageAvancement,
-      agentId: agentId ?? this.agentId,
+      agentIds: agentIds ?? this.agentIds,
       activiteId: activiteId ?? this.activiteId,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
